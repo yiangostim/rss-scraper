@@ -1,2 +1,7 @@
 # rss-scraper
-Scrape splash247 and tradewinds latests news every 6 hours
+Scraping news from:
+Splash247
+Maritime Executive
+TradeWinds
+MarineTraffic
+Seatrade Maritime
