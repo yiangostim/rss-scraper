@@ -49,7 +49,7 @@ def scrape_splash247_rss():
     return articles
 
 def scrape_tradewinds_html():
-    """Scrape TradeWinds latest news page"""
+    """Scrape TradeWinds latest news page using the correct CSS selectors"""
     url = 'https://www.tradewindsnews.com/latest'
     articles = []
     
@@ -65,86 +65,93 @@ def scrape_tradewinds_html():
         
         soup = BeautifulSoup(response.content, 'html.parser')
         
-        # Find article containers - TradeWinds uses specific CSS classes
-        article_containers = soup.find_all(['article', 'div'], class_=['article', 'story', 'news-item', 'content-item'])
+        # Find all article cards based on the structure you provided
+        # Look for elements that contain both category links and article links
+        article_cards = soup.find_all('div', class_=lambda x: x and 'card' in x.lower())
         
-        # If the above doesn't work, try finding by common patterns
-        if not article_containers:
-            article_containers = soup.find_all(['div'], class_=lambda x: x and ('story' in x.lower() or 'article' in x.lower() or 'news' in x.lower()))
+        if not article_cards:
+            # Fallback: look for any container that has both category and article links
+            article_cards = soup.find_all('div')
         
-        # Fallback: look for h2, h3 tags with links (common for news headlines)
-        if not article_containers:
-            article_containers = soup.find_all(['h2', 'h3', 'h4'])
+        print(f"Found {len(article_cards)} potential article containers")
         
-        print(f"Found {len(article_containers)} potential article containers")
+        processed_links = set()  # To avoid duplicates
         
-        for container in article_containers[:20]:  # Limit to first 20 articles
+        for card in article_cards:
             try:
-                # Try to find title
-                title_elem = None
-                link_elem = None
-                
-                # Look for title in various ways
-                if container.name in ['h2', 'h3', 'h4']:
-                    title_elem = container
-                    link_elem = container.find('a')
-                else:
-                    title_elem = container.find(['h1', 'h2', 'h3', 'h4', 'a'])
-                    link_elem = container.find('a')
-                
-                if not title_elem:
-                    continue
-                
-                title = title_elem.get_text().strip()
-                if not title or len(title) < 10:  # Skip very short titles
-                    continue
-                
-                # Get link
-                link = ''
-                if link_elem and link_elem.get('href'):
-                    link = link_elem.get('href')
-                    if link.startswith('/'):
-                        link = 'https://www.tradewindsnews.com' + link
-                
-                # Try to find category
+                # Find category link with class "main-category"
+                category_elem = card.find('a', class_=lambda x: x and 'main-category' in x)
                 category = ''
-                category_elem = container.find(['span', 'div'], class_=lambda x: x and ('category' in x.lower() or 'section' in x.lower() or 'tag' in x.lower()))
                 if category_elem:
                     category = category_elem.get_text().strip()
                 
-                # Try to find date
-                pubdate = ''
-                date_elem = container.find(['time', 'span', 'div'], class_=lambda x: x and ('date' in x.lower() or 'time' in x.lower()))
-                if not date_elem:
-                    date_elem = container.find('time')
-                if date_elem:
-                    pubdate = date_elem.get_text().strip()
-                    if not pubdate and date_elem.get('datetime'):
-                        pubdate = date_elem.get('datetime')
+                # Find article title link (should have href starting with specific path)
+                title_links = card.find_all('a', class_='card-link text-reset')
+                if not title_links:
+                    # Fallback: any link that's not the category link
+                    title_links = [link for link in card.find_all('a') if link != category_elem]
                 
-                # Try to find description
-                description = ''
-                desc_elem = container.find(['p', 'div'], class_=lambda x: x and ('summary' in x.lower() or 'excerpt' in x.lower() or 'description' in x.lower()))
-                if not desc_elem:
-                    desc_elem = container.find('p')
-                if desc_elem:
-                    description = desc_elem.get_text().strip()
+                for title_link in title_links:
+                    if not title_link or not title_link.get('href'):
+                        continue
+                    
+                    href = title_link.get('href')
+                    if href in processed_links:
+                        continue
+                    
+                    # Skip category links, look for article links
+                    if href.startswith('/') and len(href.split('/')) > 2:
+                        title = title_link.get_text().strip()
+                        
+                        if not title or len(title) < 10:
+                            continue
+                        
+                        # Build full URL
+                        if href.startswith('/'):
+                            link = 'https://www.tradewindsnews.com' + href
+                        else:
+                            link = href
+                        
+                        # Find published date
+                        pubdate = ''
+                        date_elem = card.find('span', class_='published-at')
+                        if date_elem:
+                            # Extract just the date part, skip the "Published" prefix
+                            pubdate_text = date_elem.get_text().strip()
+                            if 'Published' in pubdate_text:
+                                pubdate = pubdate_text.replace('Published', '').strip()
+                            else:
+                                pubdate = pubdate_text
+                        
+                        # Try to find description/summary
+                        description = ''
+                        # Look for any paragraph or div that might contain article summary
+                        desc_candidates = card.find_all(['p', 'div'], class_=lambda x: x and ('summary' in x.lower() or 'excerpt' in x.lower() or 'description' in x.lower()))
+                        if desc_candidates:
+                            description = desc_candidates[0].get_text().strip()
+                        
+                        article = {
+                            'title': title,
+                            'link': link,
+                            'creator': '',  # TradeWinds doesn't show author on listing page
+                            'pubdate': pubdate,
+                            'category': category,
+                            'description': description,
+                            'source': 'TradeWinds'
+                        }
+                        articles.append(article)
+                        processed_links.add(href)
+                        print(f"Found article: {title}")
+                        
+                        # Limit to avoid too many articles from one card
+                        if len(articles) >= 20:
+                            break
                 
-                if title and len(title) > 10:  # Only add if we have a decent title
-                    article = {
-                        'title': title,
-                        'link': link,
-                        'creator': '',  # TradeWinds doesn't always show author on listing page
-                        'pubdate': pubdate,
-                        'category': category,
-                        'description': description,
-                        'source': 'TradeWinds'
-                    }
-                    articles.append(article)
-                    print(f"Found article: {title}")
-                
+                if len(articles) >= 20:
+                    break
+                    
             except Exception as e:
-                print(f"Error processing article container: {e}")
+                print(f"Error processing article card: {e}")
                 continue
         
         print(f"Successfully scraped {len(articles)} articles from TradeWinds")
@@ -154,11 +161,60 @@ def scrape_tradewinds_html():
     
     return articles
 
+def migrate_existing_csv():
+    """Add source column to existing CSV if it doesn't have it"""
+    csv_file = 'rss_feed_articles.csv'
+    
+    if not os.path.isfile(csv_file):
+        return
+    
+    # Read existing data
+    try:
+        with open(csv_file, 'r', encoding='utf-8') as f:
+            content = f.read().strip()
+            if not content:
+                return
+            
+            lines = content.split('\n')
+            if not lines:
+                return
+            
+            # Check if source column already exists
+            header = lines[0]
+            if 'source' in header:
+                print("Source column already exists")
+                return
+            
+            print("Adding source column to existing CSV...")
+            
+            # Read all data
+            rows = []
+            reader = csv.DictReader(lines)
+            for row in reader:
+                # Add source column - assume existing articles are from Splash247
+                row['source'] = 'Splash247'
+                rows.append(row)
+        
+        # Write back with new column
+        fieldnames = ['title', 'link', 'creator', 'pubdate', 'category', 'description', 'source']
+        with open(csv_file, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+            
+        print("Successfully migrated existing CSV with source column")
+        
+    except Exception as e:
+        print(f"Error migrating CSV: {e}")
+
 def scrape_all_sources():
     """Scrape all news sources and update CSV"""
     csv_file = 'rss_feed_articles.csv'
     
     print(f"Starting news scrape at {datetime.now()}")
+    
+    # First, migrate existing CSV if needed
+    migrate_existing_csv()
     
     # Get articles from both sources
     all_articles = []
@@ -186,7 +242,7 @@ def scrape_all_sources():
             with open(csv_file, 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    existing_links.add(row['link'])
+                    existing_links.add(row.get('link', ''))
             print(f"Found {len(existing_links)} existing articles")
         except Exception as e:
             print(f"Error reading existing CSV: {e}")
@@ -205,7 +261,7 @@ def scrape_all_sources():
             # Process new entries
             new_articles_count = 0
             for article in all_articles:
-                if article['link'] and article['link'] not in existing_links:
+                if article.get('link') and article['link'] not in existing_links:
                     writer.writerow(article)
                     new_articles_count += 1
                     print(f"New article added: {article['title']} (Source: {article['source']})")
