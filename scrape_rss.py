@@ -117,6 +117,119 @@ def scrape_maritime_executive_rss():
     
     return articles
 
+def scrape_tradewinds_html():
+    """Scrape TradeWinds latest news page using the correct CSS selectors"""
+    url = 'https://www.tradewindsnews.com/latest'
+    articles = []
+    
+    print("Scraping TradeWinds latest news...")
+    
+    try:
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        response = requests.get(url, headers=headers, timeout=30)
+        response.raise_for_status()
+        
+        soup = BeautifulSoup(response.content, 'html.parser')
+        
+        # Find all article cards based on the structure you provided
+        # Look for elements that contain both category links and article links
+        article_cards = soup.find_all('div', class_=lambda x: x and 'card' in x.lower())
+        
+        if not article_cards:
+            # Fallback: look for any container that has both category and article links
+            article_cards = soup.find_all('div')
+        
+        print(f"Found {len(article_cards)} potential article containers")
+        
+        processed_links = set()  # To avoid duplicates
+        
+        for card in article_cards:
+            try:
+                # Find category link with class "main-category"
+                category_elem = card.find('a', class_=lambda x: x and 'main-category' in x)
+                category = ''
+                if category_elem:
+                    category = category_elem.get_text().strip()
+                
+                # Find article title link (should have href starting with specific path)
+                title_links = card.find_all('a', class_='card-link text-reset')
+                if not title_links:
+                    # Fallback: any link that's not the category link
+                    title_links = [link for link in card.find_all('a') if link != category_elem]
+                
+                for title_link in title_links:
+                    if not title_link or not title_link.get('href'):
+                        continue
+                    
+                    href = title_link.get('href')
+                    if href in processed_links:
+                        continue
+                    
+                    # Skip category links, look for article links
+                    if href.startswith('/') and len(href.split('/')) > 2:
+                        title = title_link.get_text().strip()
+                        
+                        if not title or len(title) < 10:
+                            continue
+                        
+                        # Build full URL
+                        if href.startswith('/'):
+                            link = 'https://www.tradewindsnews.com' + href
+                        else:
+                            link = href
+                        
+                        # Find published date
+                        pubdate = ''
+                        date_elem = card.find('span', class_='published-at')
+                        if date_elem:
+                            # Extract just the date part, skip the "Published" prefix
+                            pubdate_text = date_elem.get_text().strip()
+                            if 'Published' in pubdate_text:
+                                pubdate = pubdate_text.replace('Published', '').strip()
+                            else:
+                                pubdate = pubdate_text
+                        
+                        # Try to find description/summary
+                        description = ''
+                        # Look for any paragraph or div that might contain article summary
+                        desc_candidates = card.find_all(['p', 'div'], class_=lambda x: x and ('summary' in x.lower() or 'excerpt' in x.lower() or 'description' in x.lower()))
+                        if desc_candidates:
+                            description = desc_candidates[0].get_text().strip()
+                        
+                        article = {
+                            'title': title,
+                            'link': link,
+                            'creator': '',  # TradeWinds doesn't show author on listing page
+                            'pubdate': pubdate,
+                            'category': category,
+                            'description': description,
+                            'source': 'TradeWinds'
+                        }
+                        articles.append(article)
+                        processed_links.add(href)
+                        print(f"Found article: {title}")
+                        
+                        # Limit to avoid too many articles from one card
+                        if len(articles) >= 20:
+                            break
+                
+                if len(articles) >= 20:
+                    break
+                    
+            except Exception as e:
+                print(f"Error processing article card: {e}")
+                continue
+        
+        print(f"Successfully scraped {len(articles)} articles from TradeWinds")
+        
+    except Exception as e:
+        print(f"Error scraping TradeWinds: {e}")
+    
+    return articles
+
 def scrape_marinetraffic_html():
     """Scrape MarineTraffic maritime news page"""
     url = 'https://www.marinetraffic.com/en/maritime-news'
