@@ -65,9 +65,7 @@ def scrape_splash247_rss():
                 'pubdate': pubdate,
                 'category': final_category,
                 'description': description,
-                'source': 'Splash247',
-                'vessel_name': '',  # Not applicable for this source
-                'port': ''  # Not applicable for this source
+                'source': 'Splash247'
             }
             articles.append(article)
             
@@ -152,9 +150,7 @@ def scrape_maritime_executive_rss():
                 'pubdate': pubdate,
                 'category': final_category,
                 'description': full_article,  # Full article content
-                'source': 'Maritime Executive',
-                'vessel_name': '',  # Not applicable for this source
-                'port': ''  # Not applicable for this source
+                'source': 'Maritime Executive'
             }
             articles.append(article)
             
@@ -252,9 +248,7 @@ def scrape_tradewinds_html():
                             'pubdate': pubdate,
                             'category': category,
                             'description': description,
-                            'source': 'TradeWinds',
-                            'vessel_name': '',  # Not applicable for this source
-                            'port': ''  # Not applicable for this source
+                            'source': 'TradeWinds'
                         }
                         articles.append(article)
                         processed_links.add(href)
@@ -278,317 +272,195 @@ def scrape_tradewinds_html():
     
     return articles
 
-def scrape_marinetraffic_html():
-    """Scrape MarineTraffic maritime news page"""
-    url = 'https://www.marinetraffic.com/en/maritime-news'
+def scrape_shipping_freight_resource_rss():
+    """Scrape Shipping and Freight Resource RSS feed"""
+    feed_url = 'https://www.shippingandfreightresource.com/feed/'
     articles = []
     
-    print("Scraping MarineTraffic maritime news...")
+    print("Scraping Shipping and Freight Resource RSS feed...")
     
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
+        feed = feedparser.parse(feed_url)
+        print(f"Found {len(feed.entries)} entries from Shipping and Freight Resource")
         
-        response = requests.get(url, headers=headers, timeout=30)
-        response.raise_for_status()
-        
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Look for news articles - MarineTraffic specific patterns
-        # Try to find article containers
-        article_containers = []
-        
-        # Common selectors for news articles
-        selectors_to_try = [
-            '.news-item',
-            '.article-item',
-            '.story',
-            'article',
-            '[class*="news"]',
-            '[class*="story"]',
-            '[class*="article"]'
-        ]
-        
-        for selector in selectors_to_try:
-            containers = soup.select(selector)
-            if len(containers) > 5:  # Found a good number of articles
-                article_containers = containers
-                print(f"Found articles using selector: {selector}")
-                break
-        
-        # If no containers found, look for links that seem like news articles
-        if not article_containers:
-            print("Trying fallback method - looking for news links")
-            all_links = soup.find_all('a', href=True)
-            news_links = []
-            for link in all_links:
-                href = link.get('href', '')
-                text = link.get_text().strip()
-                if (('news' in href.lower() or 'article' in href.lower()) and 
-                    len(text) > 15 and 
-                    not any(skip_word in text.lower() for skip_word in ['click', 'read more', 'view', 'home'])):
-                    news_links.append(link)
+        for entry in feed.entries:
+            # Extract categories
+            categories = []
+            if hasattr(entry, 'tags'):
+                categories = [tag.term for tag in entry.tags]
+            elif hasattr(entry, 'categories'):
+                categories = entry.categories
             
-            article_containers = [link.parent.parent for link in news_links[:15]]  # Get parent containers
-        
-        print(f"Found {len(article_containers)} potential article containers on MarineTraffic")
-        
-        processed_links = set()
-        
-        for container in article_containers[:20]:  # Limit to avoid too many
-            try:
-                if not container:
-                    continue
-                
-                # Look for title link
-                title_link = container.find('a', href=True)
-                if not title_link:
-                    continue
-                
-                href = title_link.get('href', '')
-                if not href or href in processed_links:
-                    continue
-                
-                title = title_link.get_text().strip()
-                if not title or len(title) < 15:
-                    continue
-                
-                # Build full URL
-                if href.startswith('/'):
-                    link = 'https://www.marinetraffic.com' + href
-                elif not href.startswith('http'):
-                    link = 'https://www.marinetraffic.com/' + href
-                else:
-                    link = href
-                
-                # Try to find date
-                pubdate = ''
-                date_selectors = ['time', '[datetime]', '.date', '.published', '[class*="date"]', '.timestamp']
-                for selector in date_selectors:
-                    date_elem = container.select_one(selector)
-                    if date_elem:
-                        pubdate = date_elem.get('datetime') or date_elem.get_text().strip()
-                        break
-                
-                # Try to find vessel name and port - MarineTraffic specific
-                vessel_name = ''
-                port = ''
-                
-                # Look for vessel name patterns
-                vessel_patterns = ['.vessel-name', '[class*="vessel"]', '.ship-name', '[class*="ship"]']
-                for pattern in vessel_patterns:
-                    vessel_elem = container.select_one(pattern)
-                    if vessel_elem:
-                        vessel_name = vessel_elem.get_text().strip()
-                        break
-                
-                # If no specific vessel element, look in title or description for vessel names
-                if not vessel_name:
-                    # Look for common vessel name patterns in title
-                    import re
-                    vessel_matches = re.findall(r'\b[A-Z][A-Z\s]+(?:STAR|QUEEN|KING|PRIDE|SPIRIT|GLORY|HARMONY|FREEDOM|VICTORY|PIONEER|EXPLORER|NAVIGATOR|EXPRESS)\b', title)
-                    if vessel_matches:
-                        vessel_name = vessel_matches[0].strip()
-                
-                # Look for port information
-                port_patterns = ['.port-name', '[class*="port"]', '.location', '[class*="location"]']
-                for pattern in port_patterns:
-                    port_elem = container.select_one(pattern)
-                    if port_elem:
-                        port = port_elem.get_text().strip()
-                        break
-                
-                # Try to find category
-                category = ''
-                category_elem = container.find(['span', 'div'], class_=lambda x: x and ('category' in x.lower() or 'tag' in x.lower()))
-                if category_elem:
-                    category = category_elem.get_text().strip()
-                
-                # Try to find description
-                description = ''
-                desc_selectors = ['p', '.summary', '.excerpt', '.description', '[class*="summary"]']
-                for selector in desc_selectors:
-                    desc_elem = container.select_one(selector)
-                    if desc_elem:
-                        desc_text = desc_elem.get_text().strip()
-                        if len(desc_text) > 20:  # Only take substantial descriptions
-                            description = desc_text
-                            break
-                
-                article = {
-                    'title': title,
-                    'link': link,
-                    'creator': '',
-                    'pubdate': pubdate,
-                    'category': category,
-                    'description': description,
-                    'source': 'MarineTraffic',
-                    'vessel_name': vessel_name,
-                    'port': port
-                }
-                articles.append(article)
-                processed_links.add(href)
-                print(f"Found MarineTraffic article: {title} | Vessel: '{vessel_name}' | Port: '{port}'")
-                
-            except Exception as e:
-                print(f"Error processing MarineTraffic container: {e}")
-                continue
-        
-        print(f"Successfully scraped {len(articles)} articles from MarineTraffic")
-        
+            # If we got a single string with pipes, split it
+            if len(categories) == 1 and '|' in str(categories[0]):
+                categories = str(categories[0]).split('|')
+            
+            # Clean up categories
+            categories = [cat.strip() for cat in categories if cat.strip()]
+            final_category = ', '.join(categories) if categories else ''
+            
+            # Clean description (remove HTML tags if present)
+            description = entry.get('description', '')
+            if description:
+                import re
+                description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
+                description = description.replace('\n', ' ').strip()  # Clean whitespace
+            
+            # Get publication date
+            pubdate = ''
+            if hasattr(entry, 'published'):
+                pubdate = entry.published
+            elif hasattr(entry, 'updated'):
+                pubdate = entry.updated
+            
+            article = {
+                'title': entry.title,
+                'link': entry.link,
+                'creator': entry.get('author', ''),
+                'pubdate': pubdate,
+                'category': final_category,
+                'description': description,
+                'source': 'Shipping and Freight Resource'
+            }
+            articles.append(article)
+            
     except Exception as e:
-        print(f"Error scraping MarineTraffic: {e}")
+        print(f"Error scraping Shipping and Freight Resource: {e}")
     
     return articles
 
-def scrape_seatrade_html():
-    """Scrape Seatrade Maritime latest news page using specific selectors"""
-    url = 'https://www.seatrade-maritime.com/latest-news'
+def scrape_marinelink_rss():
+    """Scrape MarineLink RSS feed"""
+    feed_url = 'https://www.marinelink.com/news/rss'
     articles = []
     
-    print("Scraping Seatrade Maritime latest news...")
+    print("Scraping MarineLink RSS feed...")
     
     try:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-        }
+        feed = feedparser.parse(feed_url)
+        print(f"Found {len(feed.entries)} entries from MarineLink")
         
-        response = requests.get(url, headers=headers, timeout=30)
-        response.raise_for_status()
-        
-        soup = BeautifulSoup(response.content, 'html.parser')
-        
-        # Look for the specific Seatrade structure you provided
-        # Find all containers that have the ListPreview elements
-        article_containers = soup.find_all('div', class_=lambda x: x and 'listpreview' in x.lower())
-        
-        if not article_containers:
-            # Fallback: look for any container with the specific classes we need
-            title_links = soup.find_all('a', class_='ListPreview-Title')
-            article_containers = [link.parent.parent for link in title_links if link.parent and link.parent.parent]
-        
-        if not article_containers:
-            # Another fallback: find containers with the elements we're looking for
-            article_containers = []
-            titles = soup.find_all('a', attrs={'data-testid': 'preview-default-title'})
-            for title in titles:
-                container = title.parent
-                while container and container.name != 'article' and not (container.get('class') and any('preview' in cls.lower() for cls in container.get('class'))):
-                    container = container.parent
-                    if not container or container.name == 'body':
-                        container = title.parent.parent.parent  # Fallback to great-grandparent
-                        break
-                if container:
-                    article_containers.append(container)
-        
-        print(f"Found {len(article_containers)} potential article containers on Seatrade")
-        
-        processed_links = set()
-        
-        for container in article_containers[:20]:
-            try:
-                if not container:
-                    continue
-                
-                # Find title using the specific selector you provided
-                title_link = container.find('a', class_='ListPreview-Title')
-                if not title_link:
-                    title_link = container.find('a', attrs={'data-testid': 'preview-default-title'})
-                if not title_link:
-                    # Fallback
-                    title_link = container.find('a', href=True)
-                
-                if not title_link:
-                    continue
-                
-                href = title_link.get('href', '')
-                if not href or href in processed_links:
-                    continue
-                
-                title = title_link.get_text().strip()
-                if not title or len(title) < 10:
-                    continue
-                
-                # Build full URL
-                if href.startswith('/'):
-                    link = 'https://www.seatrade-maritime.com' + href
-                elif not href.startswith('http'):
-                    link = 'https://www.seatrade-maritime.com/' + href
-                else:
-                    link = href
-                
-                # Find category using the specific selector you provided
-                category = ''
-                category_elem = container.find('a', class_='Keyword_title_portsLogistics')
-                if not category_elem:
-                    category_elem = container.find('a', class_=lambda x: x and 'keyword' in x.lower())
-                if not category_elem:
-                    category_elem = container.find('a', attrs={'data-component': 'keyword'})
-                
-                if category_elem:
-                    category = category_elem.get_text().strip()
-                
-                # Find date using the specific selector you provided
-                pubdate = ''
-                date_elem = container.find('span', class_='ListPreview-Date')
-                if not date_elem:
-                    date_elem = container.find('span', attrs={'data-testid': 'list-preview-date'})
-                if not date_elem:
-                    # Fallback date patterns
-                    date_elem = container.find(['time', 'span'], class_=lambda x: x and 'date' in x.lower())
-                
-                if date_elem:
-                    pubdate = date_elem.get_text().strip()
-                
-                # Find author using the specific selector you provided
-                creator = ''
-                author_elem = container.find('a', class_='Contributors-ContributorName')
-                if not author_elem:
-                    author_elem = container.find('a', attrs={'data-testid': 'contributor-name'})
-                if not author_elem:
-                    # Fallback author patterns
-                    author_elem = container.find(['span', 'a'], class_=lambda x: x and ('author' in x.lower() or 'contributor' in x.lower()))
-                
-                if author_elem:
-                    creator = author_elem.get_text().strip()
-                
-                # Try to find description
-                description = ''
-                desc_elem = container.find(['p', 'div'], class_=lambda x: x and ('summary' in x.lower() or 'excerpt' in x.lower() or 'description' in x.lower()))
-                if not desc_elem:
-                    desc_elem = container.find('p')
-                if desc_elem:
-                    description = desc_elem.get_text().strip()
-                
-                article = {
-                    'title': title,
-                    'link': link,
-                    'creator': creator,
-                    'pubdate': pubdate,
-                    'category': category,
-                    'description': description,
-                    'source': 'Seatrade Maritime',
-                    'vessel_name': '',  # Not applicable for this source
-                    'port': ''  # Not applicable for this source
-                }
-                articles.append(article)
-                processed_links.add(href)
-                print(f"Found Seatrade article: {title} | Category: '{category}' | Author: '{creator}' | Date: '{pubdate}'")
-                
-            except Exception as e:
-                print(f"Error processing Seatrade container: {e}")
-                continue
-        
-        print(f"Successfully scraped {len(articles)} articles from Seatrade Maritime")
-        
+        for entry in feed.entries:
+            # Extract categories
+            categories = []
+            if hasattr(entry, 'tags'):
+                categories = [tag.term for tag in entry.tags]
+            elif hasattr(entry, 'categories'):
+                categories = entry.categories
+            
+            # If we got a single string with pipes, split it
+            if len(categories) == 1 and '|' in str(categories[0]):
+                categories = str(categories[0]).split('|')
+            
+            # Clean up categories
+            categories = [cat.strip() for cat in categories if cat.strip()]
+            final_category = ', '.join(categories) if categories else ''
+            
+            # Clean description (remove HTML tags if present)
+            description = entry.get('description', '')
+            if description:
+                import re
+                description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
+                description = description.replace('\n', ' ').strip()  # Clean whitespace
+            
+            # Get publication date
+            pubdate = ''
+            if hasattr(entry, 'published'):
+                pubdate = entry.published
+            elif hasattr(entry, 'updated'):
+                pubdate = entry.updated
+            
+            article = {
+                'title': entry.title,
+                'link': entry.link,
+                'creator': entry.get('author', ''),
+                'pubdate': pubdate,
+                'category': final_category,
+                'description': description,
+                'source': 'MarineLink'
+            }
+            articles.append(article)
+            
     except Exception as e:
-        print(f"Error scraping Seatrade Maritime: {e}")
+        print(f"Error scraping MarineLink: {e}")
     
     return articles
+
+def scrape_hellenic_shipping_news_rss():
+    """Scrape both Hellenic Shipping News RSS feeds and remove duplicates"""
+    feeds = [
+        ('https://www.hellenicshippingnews.com/tag/top-stories/feed/', 'Hellenic Shipping News - Top Stories'),
+        ('https://www.hellenicshippingnews.com/category/shipping-news/dry-bulk-market/feed/', 'Hellenic Shipping News - Dry Bulk')
+    ]
+    
+    all_articles = []
+    processed_links = set()  # To avoid duplicates between feeds
+    
+    for feed_url, source_name in feeds:
+        articles = []
+        print(f"Scraping {source_name} RSS feed...")
+        
+        try:
+            feed = feedparser.parse(feed_url)
+            print(f"Found {len(feed.entries)} entries from {source_name}")
+            
+            for entry in feed.entries:
+                # Skip if we already processed this article from another feed
+                if entry.link in processed_links:
+                    print(f"Duplicate found, skipping: {entry.title[:50]}...")
+                    continue
+                
+                # Extract categories
+                categories = []
+                if hasattr(entry, 'tags'):
+                    categories = [tag.term for tag in entry.tags]
+                elif hasattr(entry, 'categories'):
+                    categories = entry.categories
+                
+                # If we got a single string with pipes, split it
+                if len(categories) == 1 and '|' in str(categories[0]):
+                    categories = str(categories[0]).split('|')
+                
+                # Clean up categories
+                categories = [cat.strip() for cat in categories if cat.strip()]
+                final_category = ', '.join(categories) if categories else ''
+                
+                # Clean description (remove HTML tags if present)
+                description = entry.get('description', '')
+                if description:
+                    import re
+                    description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
+                    description = description.replace('\n', ' ').strip()  # Clean whitespace
+                
+                # Get publication date
+                pubdate = ''
+                if hasattr(entry, 'published'):
+                    pubdate = entry.published
+                elif hasattr(entry, 'updated'):
+                    pubdate = entry.updated
+                
+                article = {
+                    'title': entry.title,
+                    'link': entry.link,
+                    'creator': entry.get('author', ''),
+                    'pubdate': pubdate,
+                    'category': final_category,
+                    'description': description,
+                    'source': source_name
+                }
+                articles.append(article)
+                processed_links.add(entry.link)
+                
+        except Exception as e:
+            print(f"Error scraping {source_name}: {e}")
+        
+        all_articles.extend(articles)
+    
+    print(f"Total unique articles from Hellenic Shipping News: {len(all_articles)}")
+    return all_articles
 
 def migrate_existing_csv():
-    """Add source column to existing CSV if it doesn't have it"""
+    """Remove vessel_name and port columns from existing CSV and add scrape_timestamp"""
     csv_file = 'rss_feed_articles.csv'
     
     if not os.path.isfile(csv_file):
@@ -605,42 +477,39 @@ def migrate_existing_csv():
             if not lines:
                 return
             
-            # Check if source column already exists
+            # Check if we need to migrate
             header = lines[0]
-            if 'vessel_name' in header and 'port' in header:
-                print("All new columns already exist")
-                return
-            
-            print("Adding new columns to existing CSV...")
-            
-            # Read all data
-            rows = []
-            reader = csv.DictReader(lines)
-            for row in reader:
-                # Add missing columns - assume existing articles are from Splash247
-                if 'source' not in row:
-                    row['source'] = 'Splash247'
-                if 'vessel_name' not in row:
-                    row['vessel_name'] = ''
-                if 'port' not in row:
-                    row['port'] = ''
-                rows.append(row)
-        
-        # Write back with new columns
-        fieldnames = ['title', 'link', 'creator', 'pubdate', 'category', 'description', 'source', 'vessel_name', 'port']
-        with open(csv_file, 'w', newline='', encoding='utf-8') as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            for row in rows:
-                # Add the new columns for existing data
-                if 'vessel_name' not in row:
-                    row['vessel_name'] = ''
-                if 'port' not in row:
-                    row['port'] = ''
-            writer.writerows(rows)
-            
-        print("Successfully migrated existing CSV with new columns")
-        
+            if 'vessel_name' in header or 'port' in header or 'scrape_timestamp' not in header:
+                print("Migrating existing CSV to remove vessel/port columns and add scrape_timestamp...")
+                
+                # Read all data
+                rows = []
+                reader = csv.DictReader(lines)
+                for row in reader:
+                    # Remove unwanted columns and add scrape_timestamp if missing
+                    new_row = {
+                        'title': row.get('title', ''),
+                        'link': row.get('link', ''),
+                        'creator': row.get('creator', ''),
+                        'pubdate': row.get('pubdate', ''),
+                        'category': row.get('category', ''),
+                        'description': row.get('description', ''),
+                        'source': row.get('source', 'Unknown'),
+                        'scrape_timestamp': row.get('scrape_timestamp', 'Unknown')  # Keep existing timestamp or mark as unknown
+                    }
+                    rows.append(new_row)
+                
+                # Write back with new structure
+                fieldnames = ['title', 'link', 'creator', 'pubdate', 'category', 'description', 'source', 'scrape_timestamp']
+                with open(csv_file, 'w', newline='', encoding='utf-8') as f:
+                    writer = csv.DictWriter(f, fieldnames=fieldnames)
+                    writer.writeheader()
+                    writer.writerows(rows)
+                    
+                print("Successfully migrated existing CSV")
+            else:
+                print("CSV already has correct structure")
+                
     except Exception as e:
         print(f"Error migrating CSV: {e}")
 
@@ -648,7 +517,9 @@ def scrape_all_sources():
     """Scrape all news sources and update CSV"""
     csv_file = 'rss_feed_articles.csv'
     
-    print(f"Starting news scrape at {datetime.now()}")
+    # Get current timestamp for this scrape session
+    scrape_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f"Starting news scrape at {scrape_timestamp}")
     
     # First, migrate existing CSV if needed
     migrate_existing_csv()
@@ -671,16 +542,25 @@ def scrape_all_sources():
     all_articles.extend(tradewinds_articles)
     time.sleep(2)
     
-    # Scrape MarineTraffic HTML
-    marinetraffic_articles = scrape_marinetraffic_html()
-    all_articles.extend(marinetraffic_articles)
+    # Scrape Shipping and Freight Resource RSS
+    shipping_freight_articles = scrape_shipping_freight_resource_rss()
+    all_articles.extend(shipping_freight_articles)
     time.sleep(2)
     
-    # Scrape Seatrade Maritime HTML
-    seatrade_articles = scrape_seatrade_html()
-    all_articles.extend(seatrade_articles)
+    # Scrape MarineLink RSS
+    marinelink_articles = scrape_marinelink_rss()
+    all_articles.extend(marinelink_articles)
+    time.sleep(2)
+    
+    # Scrape Hellenic Shipping News RSS feeds (with duplicate removal)
+    hellenic_articles = scrape_hellenic_shipping_news_rss()
+    all_articles.extend(hellenic_articles)
     
     print(f"Total articles found: {len(all_articles)}")
+    
+    # Add scrape timestamp to all articles
+    for article in all_articles:
+        article['scrape_timestamp'] = scrape_timestamp
     
     # Check if CSV file exists
     file_exists = os.path.isfile(csv_file)
@@ -700,7 +580,7 @@ def scrape_all_sources():
     # Write to CSV
     try:
         with open(csv_file, 'a', newline='', encoding='utf-8') as f:
-            fieldnames = ['title', 'link', 'creator', 'pubdate', 'category', 'description', 'source', 'vessel_name', 'port']
+            fieldnames = ['title', 'link', 'creator', 'pubdate', 'category', 'description', 'source', 'scrape_timestamp']
             writer = csv.DictWriter(f, fieldnames=fieldnames)
             
             # Write headers if file is new
@@ -721,8 +601,7 @@ def scrape_all_sources():
                         'category': article.get('category', ''),
                         'description': article.get('description', ''),
                         'source': article.get('source', ''),
-                        'vessel_name': article.get('vessel_name', ''),
-                        'port': article.get('port', '')
+                        'scrape_timestamp': article.get('scrape_timestamp', scrape_timestamp)
                     }
                     writer.writerow(article_row)
                     new_articles_count += 1
