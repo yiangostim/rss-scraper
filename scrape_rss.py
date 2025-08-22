@@ -47,6 +47,8 @@ def standardize_date(date_string, source_name=""):
     except Exception as e:
         print(f"Error parsing date '{date_string}' from {source_name}: {e}")
         return date_string  # Return original if parsing fails
+
+    def scrape_splash247_rss():
     """Scrape Splash247 RSS feed"""
     feed_url = 'https://splash247.com/feed/'
     articles = []
