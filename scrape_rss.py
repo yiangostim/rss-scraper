@@ -246,7 +246,28 @@ def scrape_tradewinds_html():
                             'source': 'TradeWinds',
                             'vessel_name': '',  # Not applicable for this source
                             'port': ''  # Not applicable for this source
-                        }link': link,
+                        }
+                        articles.append(article)
+                        processed_links.add(href)
+                        print(f"Found article: {title}")
+                        
+                        # Limit to avoid too many articles from one card
+                        if len(articles) >= 20:
+                            break
+                
+                if len(articles) >= 20:
+                    break
+                    
+            except Exception as e:
+                print(f"Error processing article card: {e}")
+                continue
+        
+        print(f"Successfully scraped {len(articles)} articles from TradeWinds")
+        
+    except Exception as e:
+        print(f"Error scraping TradeWinds: {e}")
+    
+    return articleslink': link,
                             'creator': '',  # TradeWinds doesn't show author on listing page
                             'pubdate': pubdate,
                             'category': category,
