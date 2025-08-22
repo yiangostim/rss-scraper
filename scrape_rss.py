@@ -49,17 +49,17 @@ def standardize_date(date_string, source_name=""):
         return date_string  # Return original if parsing fails
 
     def scrape_splash247_rss():
-    """Scrape Splash247 RSS feed"""
-    feed_url = 'https://splash247.com/feed/'
-    articles = []
+        """Scrape Splash247 RSS feed"""
+        feed_url = 'https://splash247.com/feed/'
+        articles = []
     
-    print("Scraping Splash247 RSS feed...")
+        print("Scraping Splash247 RSS feed...")
     
-    try:
-        feed = feedparser.parse(feed_url)
-        print(f"Found {len(feed.entries)} entries from Splash247")
+        try:
+            feed = feedparser.parse(feed_url)
+            print(f"Found {len(feed.entries)} entries from Splash247")
         
-        for entry in feed.entries:
+            for entry in feed.entries:
             # Extract categories with multiple approaches
             categories = []
             
