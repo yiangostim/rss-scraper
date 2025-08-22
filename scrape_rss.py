@@ -37,7 +37,7 @@ def scrape_splash247_rss():
                 'link': entry.link,
                 'creator': entry.get('author', ''),
                 'pubdate': entry.get('published', ''),
-                'category': '|'.join(categories),
+                'category': ', '.join(categories),  # Comma-separated, much cleaner
                 'description': description,
                 'source': 'Splash247'
             }
