@@ -18,12 +18,31 @@ def scrape_splash247_rss():
         print(f"Found {len(feed.entries)} entries from Splash247")
         
         for entry in feed.entries:
-            # Extract categories
+            # Extract categories with multiple approaches
             categories = []
+            
+            # Method 1: Try tags
             if hasattr(entry, 'tags'):
                 categories = [tag.term for tag in entry.tags]
+            # Method 2: Try categories
             elif hasattr(entry, 'categories'):
                 categories = entry.categories
+            
+            # Debug: print categories to see what we're getting
+            if categories:
+                print(f"Raw categories for '{entry.title[:50]}...': {categories}")
+                print(f"Type: {type(categories)}, Length: {len(categories)}")
+            
+            # If we got a single string with pipes, split it
+            if len(categories) == 1 and '|' in str(categories[0]):
+                categories = str(categories[0]).split('|')
+                print(f"Split pipe-separated categories: {categories}")
+            
+            # Clean up categories (remove empty strings, strip whitespace)
+            categories = [cat.strip() for cat in categories if cat.strip()]
+            
+            final_category = ', '.join(categories) if categories else ''
+            print(f"Final category string: '{final_category}'")
             
             # Clean description (remove HTML tags if present)
             description = entry.get('description', '')
@@ -37,7 +56,7 @@ def scrape_splash247_rss():
                 'link': entry.link,
                 'creator': entry.get('author', ''),
                 'pubdate': entry.get('published', ''),
-                'category': ', '.join(categories),  # Comma-separated, much cleaner
+                'category': final_category,
                 'description': description,
                 'source': 'Splash247'
             }
