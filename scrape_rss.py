@@ -5,8 +5,48 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 import time
+from dateutil import parser as date_parser
+import pytz
 
-def scrape_splash247_rss():
+def standardize_date(date_string, source_name=""):
+    """Convert various date formats to standardized Greece timezone format (DD/MM/YYYY HH:MM:SS)"""
+    if not date_string or date_string.strip() == '':
+        return ''
+    
+    # Target timezone - Greece (Europe/Athens)
+    target_tz = pytz.timezone('Europe/Athens')
+    
+    try:
+        # Handle different date formats from different sources
+        parsed_date = None
+        
+        if source_name == 'TradeWinds':
+            # TradeWinds format: "22 August 2025 14:31 GMT"
+            try:
+                # Replace 'GMT' with '+0000' for proper parsing
+                date_string_clean = date_string.replace(' GMT', ' +0000')
+                parsed_date = date_parser.parse(date_string_clean)
+            except:
+                pass
+        
+        # If TradeWinds parsing failed or it's another source, use general parsing
+        if parsed_date is None:
+            parsed_date = date_parser.parse(date_string)
+        
+        # Convert to target timezone
+        if parsed_date.tzinfo is None:
+            # If no timezone info, assume UTC
+            parsed_date = pytz.UTC.localize(parsed_date)
+        
+        # Convert to Greece timezone
+        greece_time = parsed_date.astimezone(target_tz)
+        
+        # Format as DD/MM/YYYY HH:MM:SS
+        return greece_time.strftime('%d/%m/%Y %H:%M:%S')
+        
+    except Exception as e:
+        print(f"Error parsing date '{date_string}' from {source_name}: {e}")
+        return date_string  # Return original if parsing fails
     """Scrape Splash247 RSS feed"""
     feed_url = 'https://splash247.com/feed/'
     articles = []
@@ -58,11 +98,20 @@ def scrape_splash247_rss():
             elif hasattr(entry, 'updated'):
                 pubdate = entry.updated
             
+            # Standardize the date format
+            standardized_pubdate = standardize_date(pubdate, 'MarineLink')
+            
+            # Standardize the date format
+            standardized_pubdate = standardize_date(pubdate, 'Shipping and Freight Resource')
+            
+            # Standardize the date format
+            standardized_pubdate = standardize_date(pubdate, 'Splash247')
+            
             article = {
                 'title': entry.title,
                 'link': entry.link,
                 'creator': entry.get('author', ''),
-                'pubdate': pubdate,
+                'pubdate': standardized_pubdate,
                 'category': final_category,
                 'description': description,
                 'source': 'Splash247'
@@ -138,6 +187,9 @@ def scrape_maritime_executive_rss():
             elif hasattr(entry, 'published'):
                 pubdate = entry.published
             
+            # Standardize the date format
+            standardized_pubdate = standardize_date(pubdate, 'Maritime Executive')
+            
             # Get author (include even if empty)
             author = entry.get('author', '')
             
@@ -147,7 +199,7 @@ def scrape_maritime_executive_rss():
                 'title': entry.title,
                 'link': entry.link,
                 'creator': author,
-                'pubdate': pubdate,
+                'pubdate': standardized_pubdate,
                 'category': final_category,
                 'description': full_article,  # Full article content
                 'source': 'Maritime Executive'
@@ -234,6 +286,9 @@ def scrape_tradewinds_html():
                             else:
                                 pubdate = pubdate_text
                         
+                        # Standardize the date format
+                        standardized_pubdate = standardize_date(pubdate, 'TradeWinds')
+                        
                         # Try to find description/summary
                         description = ''
                         # Look for any paragraph or div that might contain article summary
@@ -245,7 +300,7 @@ def scrape_tradewinds_html():
                             'title': title,
                             'link': link,
                             'creator': '',  # TradeWinds doesn't show author on listing page
-                            'pubdate': pubdate,
+                            'pubdate': standardized_pubdate,
                             'category': category,
                             'description': description,
                             'source': 'TradeWinds'
@@ -317,7 +372,7 @@ def scrape_shipping_freight_resource_rss():
                 'title': entry.title,
                 'link': entry.link,
                 'creator': entry.get('author', ''),
-                'pubdate': pubdate,
+                'pubdate': standardized_pubdate,
                 'category': final_category,
                 'description': description,
                 'source': 'Shipping and Freight Resource'
@@ -374,7 +429,7 @@ def scrape_marinelink_rss():
                 'title': entry.title,
                 'link': entry.link,
                 'creator': entry.get('author', ''),
-                'pubdate': pubdate,
+                'pubdate': standardized_pubdate,
                 'category': final_category,
                 'description': description,
                 'source': 'MarineLink'
@@ -439,11 +494,14 @@ def scrape_hellenic_shipping_news_rss():
                 elif hasattr(entry, 'updated'):
                     pubdate = entry.updated
                 
+                # Standardize the date format
+                standardized_pubdate = standardize_date(pubdate, source_name)
+                
                 article = {
                     'title': entry.title,
                     'link': entry.link,
                     'creator': entry.get('author', ''),
-                    'pubdate': pubdate,
+                    'pubdate': standardized_pubdate,
                     'category': final_category,
                     'description': description,
                     'source': source_name
@@ -517,9 +575,10 @@ def scrape_all_sources():
     """Scrape all news sources and update CSV"""
     csv_file = 'rss_feed_articles.csv'
     
-    # Get current timestamp for this scrape session
-    scrape_timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print(f"Starting news scrape at {scrape_timestamp}")
+    # Get current timestamp for this scrape session (also standardized to Greece timezone)
+    greece_tz = pytz.timezone('Europe/Athens')
+    scrape_timestamp = datetime.now(greece_tz).strftime('%d/%m/%Y %H:%M:%S')
+    print(f"Starting news scrape at {scrape_timestamp} (Greece time)")
     
     # First, migrate existing CSV if needed
     migrate_existing_csv()
