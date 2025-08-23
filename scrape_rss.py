@@ -81,7 +81,15 @@ def scrape_splash247_rss():
     
     try:
         feed = feedparser.parse(feed_url)
-        print(f"Found {len(feed.entries)} entries from Splash247")
+        print(f"   RSS Status: {feed.get('status', 'unknown')}")
+        print(f"   Feed Title: {feed.feed.get('title', 'unknown') if hasattr(feed, 'feed') else 'no feed object'}")
+        print(f"   Found {len(feed.entries)} entries from Splash247")
+        
+        if len(feed.entries) == 0:
+            print(f"   🚨 No entries found. Feed object keys: {list(feed.keys())}")
+            if hasattr(feed, 'bozo') and feed.bozo:
+                print(f"   🚨 Feed parsing error: {feed.bozo_exception}")
+            return articles
         
         for entry in feed.entries:
             # Extract categories with multiple approaches
@@ -153,7 +161,15 @@ def scrape_maritime_executive_rss():
     
     try:
         feed = feedparser.parse(feed_url)
-        print(f"Found {len(feed.entries)} entries from Maritime Executive")
+        print(f"   RSS Status: {feed.get('status', 'unknown')}")
+        print(f"   Feed Title: {feed.feed.get('title', 'unknown') if hasattr(feed, 'feed') else 'no feed object'}")
+        print(f"   Found {len(feed.entries)} entries from Maritime Executive")
+        
+        if len(feed.entries) == 0:
+            print(f"   🚨 No entries found. Feed object keys: {list(feed.keys())}")
+            if hasattr(feed, 'bozo') and feed.bozo:
+                print(f"   🚨 Feed parsing error: {feed.bozo_exception}")
+            return articles
         
         for entry in feed.entries:
             # Extract categories
@@ -489,11 +505,11 @@ def scrape_hellenic_shipping_news_rss():
             feed = feedparser.parse(feed_url)
             print(f"Found {len(feed.entries)} entries from {source_name}")
             
-            for entry in feed.entries:
-                # Skip if we already processed this article from another feed
-                if entry.link in processed_links:
-                    print(f"Duplicate found, skipping: {entry.title[:50]}...")
-                    continue
+                for entry in feed.entries:
+                    # Skip if we already processed this article from another feed
+                    if entry.link in processed_links:
+                        print(f"   Duplicate found, skipping: {entry.title[:50]}...")
+                        continue
                 
                 # Extract categories
                 categories = []
@@ -617,36 +633,78 @@ def scrape_all_sources():
     # Get articles from all sources
     all_articles = []
     
+    print("\n=== STARTING SCRAPING PROCESS ===")
+    
     # Scrape Splash247 RSS
-    splash_articles = scrape_splash247_rss()
-    all_articles.extend(splash_articles)
-    time.sleep(2)  # Be respectful between requests
+    try:
+        print("1. Attempting Splash247...")
+        splash_articles = scrape_splash247_rss()
+        print(f"   → Splash247 returned {len(splash_articles)} articles")
+        all_articles.extend(splash_articles)
+        time.sleep(2)  # Be respectful between requests
+    except Exception as e:
+        print(f"   → ERROR in Splash247: {e}")
     
     # Scrape Maritime Executive RSS
-    maritime_exec_articles = scrape_maritime_executive_rss()
-    all_articles.extend(maritime_exec_articles)
-    time.sleep(2)
+    try:
+        print("2. Attempting Maritime Executive...")
+        maritime_exec_articles = scrape_maritime_executive_rss()
+        print(f"   → Maritime Executive returned {len(maritime_exec_articles)} articles")
+        all_articles.extend(maritime_exec_articles)
+        time.sleep(2)
+    except Exception as e:
+        print(f"   → ERROR in Maritime Executive: {e}")
     
     # Scrape TradeWinds HTML
-    tradewinds_articles = scrape_tradewinds_html()
-    all_articles.extend(tradewinds_articles)
-    time.sleep(2)
+    try:
+        print("3. Attempting TradeWinds...")
+        tradewinds_articles = scrape_tradewinds_html()
+        print(f"   → TradeWinds returned {len(tradewinds_articles)} articles")
+        all_articles.extend(tradewinds_articles)
+        time.sleep(2)
+    except Exception as e:
+        print(f"   → ERROR in TradeWinds: {e}")
     
     # Scrape Shipping and Freight Resource RSS
-    shipping_freight_articles = scrape_shipping_freight_resource_rss()
-    all_articles.extend(shipping_freight_articles)
-    time.sleep(2)
+    try:
+        print("4. Attempting Shipping and Freight Resource...")
+        shipping_freight_articles = scrape_shipping_freight_resource_rss()
+        print(f"   → Shipping and Freight Resource returned {len(shipping_freight_articles)} articles")
+        all_articles.extend(shipping_freight_articles)
+        time.sleep(2)
+    except Exception as e:
+        print(f"   → ERROR in Shipping and Freight Resource: {e}")
     
     # Scrape MarineLink RSS
-    marinelink_articles = scrape_marinelink_rss()
-    all_articles.extend(marinelink_articles)
-    time.sleep(2)
+    try:
+        print("5. Attempting MarineLink...")
+        marinelink_articles = scrape_marinelink_rss()
+        print(f"   → MarineLink returned {len(marinelink_articles)} articles")
+        all_articles.extend(marinelink_articles)
+        time.sleep(2)
+    except Exception as e:
+        print(f"   → ERROR in MarineLink: {e}")
     
     # Scrape Hellenic Shipping News RSS feeds (with duplicate removal)
-    hellenic_articles = scrape_hellenic_shipping_news_rss()
-    all_articles.extend(hellenic_articles)
+    try:
+        print("6. Attempting Hellenic Shipping News...")
+        hellenic_articles = scrape_hellenic_shipping_news_rss()
+        print(f"   → Hellenic Shipping News returned {len(hellenic_articles)} articles")
+        all_articles.extend(hellenic_articles)
+    except Exception as e:
+        print(f"   → ERROR in Hellenic Shipping News: {e}")
     
-    print(f"Total articles found: {len(all_articles)}")
+    print(f"\n=== SCRAPING SUMMARY ===")
+    print(f"Total articles found across all sources: {len(all_articles)}")
+    
+    if len(all_articles) == 0:
+        print("🚨 WARNING: No articles found from any source!")
+        print("This could indicate:")
+        print("  - Network connectivity issues")
+        print("  - Website structure changes")
+        print("  - RSS feed URL changes")
+        print("  - Rate limiting or blocking")
+        return
     
     # Add scrape timestamp to all articles
     for article in all_articles:
@@ -663,7 +721,7 @@ def scrape_all_sources():
                 reader = csv.DictReader(f)
                 for row in reader:
                     existing_links.add(row.get('link', ''))
-            print(f"Found {len(existing_links)} existing articles")
+            print(f"Found {len(existing_links)} existing articles in CSV")
         except Exception as e:
             print(f"Error reading existing CSV: {e}")
     
@@ -680,6 +738,8 @@ def scrape_all_sources():
             
             # Process new entries
             new_articles_count = 0
+            duplicate_count = 0
+            
             for article in all_articles:
                 if article.get('link') and article['link'] not in existing_links:
                     # Ensure all required fields are present
@@ -695,12 +755,19 @@ def scrape_all_sources():
                     }
                     writer.writerow(article_row)
                     new_articles_count += 1
-                    print(f"New article added: {article['title']} (Source: {article['source']})")
+                    print(f"✓ New article: {article['title'][:60]}... (Source: {article['source']})")
+                elif article.get('link'):
+                    duplicate_count += 1
             
-            print(f"Added {new_articles_count} new articles to {csv_file}")
+            print(f"\n=== FINAL RESULTS ===")
+            print(f"✓ Added {new_articles_count} new articles to {csv_file}")
+            print(f"↺ Skipped {duplicate_count} duplicate articles")
+            print(f"📄 Total articles processed: {len(all_articles)}")
             
     except Exception as e:
-        print(f"Error writing to CSV: {e}")
+        print(f"❌ Error writing to CSV: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     scrape_all_sources()
