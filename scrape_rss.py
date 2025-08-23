@@ -93,14 +93,14 @@ def clean_text(text):
         
         # Additional regex-based replacements for stubborn encoding issues
         # These handle cases where the exact byte sequence might vary slightly
-        text = re.sub(r'â€[™']', "'", text)  # Various apostrophe encodings
-        text = re.sub(r'â€["]', '"', text)   # Various quote encodings  
-        text = re.sub(r'â€[–—]', '–', text)  # Various dash encodings
-        text = re.sub(r'â€œ', '"', text)     # Left double quote
-        text = re.sub(r'â€', '"', text)      # Right double quote
-        text = re.sub(r'â€˜', "'", text)     # Left single quote
-        text = re.sub(r'â€¢', '•', text)     # Bullet point
-        text = re.sub(r'â€¦', '…', text)     # Ellipsis
+        text = re.sub(r'â€[™\']', "'", text)  # Various apostrophe encodings
+        text = re.sub(r'â€["]', '"', text)    # Various quote encodings  
+        text = re.sub(r'â€[–—]', '–', text)   # Various dash encodings
+        text = re.sub(r'â€œ', '"', text)      # Left double quote
+        text = re.sub(r'â€', '"', text)       # Right double quote
+        text = re.sub(r'â€˜', "'", text)      # Left single quote
+        text = re.sub(r'â€¢', '•', text)      # Bullet point
+        text = re.sub(r'â€¦', '…', text)      # Ellipsis
         
         # Remove any remaining control characters except normal whitespace
         text = ''.join(char for char in text if unicodedata.category(char)[0] != 'C' or char in '\t\n\r ')
