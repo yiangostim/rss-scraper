@@ -1,7 +1,2 @@
 # rss-scraper
-Scraping news from:
-Splash247
-Maritime Executive
-TradeWinds
-hellenicshippingnews
-marinelink
+Scraping news from: Splash247, Maritime Executive, TradeWinds, Shipping and Freight Resource, MarineLink, Hellenic Shipping News
