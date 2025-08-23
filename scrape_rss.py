@@ -56,33 +56,51 @@ def clean_text(text):
         # Remove common problematic characters that appear due to encoding issues
         # These are common UTF-8 to Latin-1 encoding artifacts
         replacements = {
-            'Â': '',      # Non-breaking space artifacts
-            'â€™': "'",   # Right single quotation mark (UTF-8 to Latin-1 artifact)
-            'â€œ': '"',   # Left double quotation mark
-            'â€': '"',    # Right double quotation mark
-            'â€"': '–',   # En dash
-            'â€"': '—',   # Em dash
-            'â€¢': '•',   # Bullet
-            'â€¦': '…',   # Horizontal ellipsis
-            'Ã©': 'é',    # e with acute
-            'Ã¡': 'á',    # a with acute
-            'Ã­': 'í',    # i with acute
-            'Ã³': 'ó',    # o with acute
-            'Ãº': 'ú',    # u with acute
-            'Ã±': 'ñ',    # n with tilde
-            'Ã§': 'ç',    # c with cedilla
-            'Â´': "'",    # Acute accent artifact
-            'Â°': '°',    # Degree symbol
-            'Â½': '½',    # One half
-            'Â¼': '¼',    # One quarter
-            'Â¾': '¾',    # Three quarters
-            'â€': '',     # Various quote artifacts
-            'â€': '',
-            'â€': '',
+            'Â': '',       # Non-breaking space artifacts
+            'â€™': "'",    # Right single quotation mark (UTF-8 to Latin-1 artifact)
+            'â€œ': '"',    # Left double quotation mark
+            'â€': '"',     # Right double quotation mark
+            'â€"': '–',    # En dash
+            'â€"': '—',    # Em dash
+            'â€¢': '•',    # Bullet
+            'â€¦': '…',    # Horizontal ellipsis
+            'â€': "'",     # Another apostrophe variant
+            'â€˜': "'",    # Left single quotation mark
+            'â€': '–',     # En dash variant
+            'â€"': '—',    # Em dash variant
+            'Ã©': 'é',     # e with acute
+            'Ã¡': 'á',     # a with acute
+            'Ã­': 'í',     # i with acute
+            'Ã³': 'ó',     # o with acute
+            'Ãº': 'ú',     # u with acute
+            'Ã±': 'ñ',     # n with tilde
+            'Ã§': 'ç',     # c with cedilla
+            'Â´': "'",     # Acute accent artifact
+            'Â°': '°',     # Degree symbol
+            'Â½': '½',     # One half
+            'Â¼': '¼',     # One quarter
+            'Â¾': '¾',     # Three quarters
+            # Additional problematic sequences
+            '\u00e2\u0080\u0099': "'",  # UTF-8 encoded right single quotation mark
+            '\u00e2\u0080\u0093': '–',  # UTF-8 encoded en dash
+            '\u00e2\u0080\u0094': '—',  # UTF-8 encoded em dash
+            '\u00e2\u0080\u009c': '"',  # UTF-8 encoded left double quotation mark
+            '\u00e2\u0080\u009d': '"',  # UTF-8 encoded right double quotation mark
         }
         
         for bad_char, good_char in replacements.items():
             text = text.replace(bad_char, good_char)
+        
+        # Additional regex-based replacements for stubborn encoding issues
+        # These handle cases where the exact byte sequence might vary slightly
+        text = re.sub(r'â€[™']', "'", text)  # Various apostrophe encodings
+        text = re.sub(r'â€["]', '"', text)   # Various quote encodings  
+        text = re.sub(r'â€[–—]', '–', text)  # Various dash encodings
+        text = re.sub(r'â€œ', '"', text)     # Left double quote
+        text = re.sub(r'â€', '"', text)      # Right double quote
+        text = re.sub(r'â€˜', "'", text)     # Left single quote
+        text = re.sub(r'â€¢', '•', text)     # Bullet point
+        text = re.sub(r'â€¦', '…', text)     # Ellipsis
         
         # Remove any remaining control characters except normal whitespace
         text = ''.join(char for char in text if unicodedata.category(char)[0] != 'C' or char in '\t\n\r ')
