@@ -48,18 +48,18 @@ def standardize_date(date_string, source_name=""):
         print(f"Error parsing date '{date_string}' from {source_name}: {e}")
         return date_string  # Return original if parsing fails
 
-    def scrape_splash247_rss():
-        """Scrape Splash247 RSS feed"""
-        feed_url = 'https://splash247.com/feed/'
-        articles = []
+def scrape_splash247_rss():
+    """Scrape Splash247 RSS feed"""
+    feed_url = 'https://splash247.com/feed/'
+    articles = []
     
-        print("Scraping Splash247 RSS feed...")
+    print("Scraping Splash247 RSS feed...")
     
-        try:
-            feed = feedparser.parse(feed_url)
-            print(f"Found {len(feed.entries)} entries from Splash247")
+    try:
+        feed = feedparser.parse(feed_url)
+        print(f"Found {len(feed.entries)} entries from Splash247")
         
-            for entry in feed.entries:
+        for entry in feed.entries:
             # Extract categories with multiple approaches
             categories = []
             
@@ -99,12 +99,6 @@ def standardize_date(date_string, source_name=""):
                 pubdate = entry.published
             elif hasattr(entry, 'updated'):
                 pubdate = entry.updated
-            
-            # Standardize the date format
-            standardized_pubdate = standardize_date(pubdate, 'MarineLink')
-            
-            # Standardize the date format
-            standardized_pubdate = standardize_date(pubdate, 'Shipping and Freight Resource')
             
             # Standardize the date format
             standardized_pubdate = standardize_date(pubdate, 'Splash247')
@@ -195,7 +189,7 @@ def scrape_maritime_executive_rss():
             # Get author (include even if empty)
             author = entry.get('author', '')
             
-            print(f"Maritime Executive article: {entry.title[:50]}... | Date: {pubdate} | Author: '{author}' | Content length: {len(full_article)}")
+            print(f"Maritime Executive article: {entry.title[:50]}... | Date: {standardized_pubdate} | Author: '{author}' | Content length: {len(full_article)}")
             
             article = {
                 'title': entry.title,
@@ -370,6 +364,9 @@ def scrape_shipping_freight_resource_rss():
             elif hasattr(entry, 'updated'):
                 pubdate = entry.updated
             
+            # Standardize the date format
+            standardized_pubdate = standardize_date(pubdate, 'Shipping and Freight Resource')
+            
             article = {
                 'title': entry.title,
                 'link': entry.link,
@@ -426,6 +423,9 @@ def scrape_marinelink_rss():
                 pubdate = entry.published
             elif hasattr(entry, 'updated'):
                 pubdate = entry.updated
+            
+            # Standardize the date format
+            standardized_pubdate = standardize_date(pubdate, 'MarineLink')
             
             article = {
                 'title': entry.title,
