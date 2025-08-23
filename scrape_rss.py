@@ -9,6 +9,7 @@ from dateutil import parser as date_parser
 import pytz
 import unicodedata
 import re
+import html
 
 def clean_text(text):
     """Clean text to remove strange encoding characters and normalize Unicode"""
@@ -19,42 +20,84 @@ def clean_text(text):
         # Convert to string if not already
         text = str(text)
         
+        # First, decode HTML entities (like &#8217; &#8211; etc.)
+        text = html.unescape(text)
+        
+        # Handle additional HTML entities that html.unescape might miss
+        html_entities = {
+            '&#8217;': "'",  # Right single quotation mark
+            '&#8216;': "'",  # Left single quotation mark
+            '&#8220;': '"',  # Left double quotation mark
+            '&#8221;': '"',  # Right double quotation mark
+            '&#8211;': '–',  # En dash
+            '&#8212;': '—',  # Em dash
+            '&#8230;': '…',  # Horizontal ellipsis
+            '&#8242;': "'",  # Prime
+            '&#8243;': '"',  # Double prime
+            '&rsquo;': "'",  # Right single quotation mark
+            '&lsquo;': "'",  # Left single quotation mark
+            '&rdquo;': '"',  # Right double quotation mark
+            '&ldquo;': '"',  # Left double quotation mark
+            '&ndash;': '–',  # En dash
+            '&mdash;': '—',  # Em dash
+            '&hellip;': '…', # Horizontal ellipsis
+            '&nbsp;': ' ',   # Non-breaking space
+            '&amp;': '&',    # Ampersand
+            '&lt;': '<',     # Less than
+            '&gt;': '>',     # Greater than
+        }
+        
+        for entity, replacement in html_entities.items():
+            text = text.replace(entity, replacement)
+        
         # Normalize Unicode characters (NFKD = canonical decomposition, then canonical combining)
         text = unicodedata.normalize('NFKD', text)
         
         # Remove common problematic characters that appear due to encoding issues
         # These are common UTF-8 to Latin-1 encoding artifacts
         replacements = {
-            'Â': '',  # Non-breaking space artifacts
-            'â€™': "'",  # Right single quotation mark
-            'â€œ': '"',  # Left double quotation mark
-            'â€': '"',   # Right double quotation mark
-            'â€"': '–',  # En dash
-            'â€"': '—',  # Em dash
-            'â€¢': '•',  # Bullet
-            'â€¦': '…',  # Horizontal ellipsis
-            'Ã©': 'é',   # e with acute
-            'Ã¡': 'á',   # a with acute
-            'Ã­': 'í',   # i with acute
-            'Ã³': 'ó',   # o with acute
-            'Ãº': 'ú',   # u with acute
-            'Ã±': 'ñ',   # n with tilde
-            'Ã§': 'ç',   # c with cedilla
+            'Â': '',      # Non-breaking space artifacts
+            'â€™': "'",   # Right single quotation mark (UTF-8 to Latin-1 artifact)
+            'â€œ': '"',   # Left double quotation mark
+            'â€': '"',    # Right double quotation mark
+            'â€"': '–',   # En dash
+            'â€"': '—',   # Em dash
+            'â€¢': '•',   # Bullet
+            'â€¦': '…',   # Horizontal ellipsis
+            'Ã©': 'é',    # e with acute
+            'Ã¡': 'á',    # a with acute
+            'Ã­': 'í',    # i with acute
+            'Ã³': 'ó',    # o with acute
+            'Ãº': 'ú',    # u with acute
+            'Ã±': 'ñ',    # n with tilde
+            'Ã§': 'ç',    # c with cedilla
+            'Â´': "'",    # Acute accent artifact
+            'Â°': '°',    # Degree symbol
+            'Â½': '½',    # One half
+            'Â¼': '¼',    # One quarter
+            'Â¾': '¾',    # Three quarters
+            'â€': '',     # Various quote artifacts
+            'â€': '',
+            'â€': '',
         }
         
         for bad_char, good_char in replacements.items():
             text = text.replace(bad_char, good_char)
         
-        # Remove any remaining non-printable characters except normal whitespace
+        # Remove any remaining control characters except normal whitespace
         text = ''.join(char for char in text if unicodedata.category(char)[0] != 'C' or char in '\t\n\r ')
         
         # Clean up excessive whitespace
         text = re.sub(r'\s+', ' ', text).strip()
         
+        # Final cleanup of any remaining weird character sequences
+        # Remove sequences of question marks that often indicate encoding issues
+        text = re.sub(r'\?{2,}', '', text)
+        
         return text
         
     except Exception as e:
-        print(f"Error cleaning text: {e}")
+        print(f"Error cleaning text '{text[:50]}...': {e}")
         return str(text) if text else ''
 
 def standardize_date(date_string, source_name=""):
@@ -143,9 +186,10 @@ def scrape_splash247_rss():
             # Clean description (remove HTML tags if present)
             description = entry.get('description', '')
             if description:
+                # Use BeautifulSoup to properly handle HTML entities and tags
+                soup = BeautifulSoup(description, 'html.parser')
+                description = soup.get_text(separator=' ', strip=True)
                 description = clean_text(description)
-                description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
-                description = description.replace('\n', ' ').strip()  # Clean whitespace
             
             # Get publication date
             pubdate = ''
@@ -225,10 +269,10 @@ def scrape_maritime_executive_rss():
                     soup = BeautifulSoup(description, 'html.parser')
                     paragraphs = soup.find_all('p')
                     if paragraphs:
-                        full_article = ' '.join([clean_text(p.get_text()).strip() for p in paragraphs if clean_text(p.get_text()).strip()])
+                        full_article = ' '.join([clean_text(p.get_text()) for p in paragraphs if clean_text(p.get_text()).strip()])
                     else:
-                        # Remove HTML tags from description
-                        full_article = re.sub('<[^<]+?>', '', description).strip()
+                        # Use BeautifulSoup to properly handle HTML entities and tags
+                        full_article = soup.get_text(separator=' ', strip=True)
                         full_article = clean_text(full_article)
             
             # Get date from updated field (which contains the ISO format date)
@@ -413,9 +457,10 @@ def scrape_shipping_freight_resource_rss():
             # Clean description (remove HTML tags if present)
             description = entry.get('description', '')
             if description:
+                # Use BeautifulSoup to properly handle HTML entities and tags
+                soup = BeautifulSoup(description, 'html.parser')
+                description = soup.get_text(separator=' ', strip=True)
                 description = clean_text(description)
-                description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
-                description = description.replace('\n', ' ').strip()  # Clean whitespace
             
             # Get publication date
             pubdate = ''
@@ -474,9 +519,10 @@ def scrape_marinelink_rss():
             # Clean description (remove HTML tags if present)
             description = entry.get('description', '')
             if description:
+                # Use BeautifulSoup to properly handle HTML entities and tags
+                soup = BeautifulSoup(description, 'html.parser')
+                description = soup.get_text(separator=' ', strip=True)
                 description = clean_text(description)
-                description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
-                description = description.replace('\n', ' ').strip()  # Clean whitespace
             
             # Get publication date
             pubdate = ''
@@ -547,9 +593,10 @@ def scrape_hellenic_shipping_news_rss():
                 # Clean description (remove HTML tags if present)
                 description = entry.get('description', '')
                 if description:
+                    # Use BeautifulSoup to properly handle HTML entities and tags
+                    soup = BeautifulSoup(description, 'html.parser')
+                    description = soup.get_text(separator=' ', strip=True)
                     description = clean_text(description)
-                    description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
-                    description = description.replace('\n', ' ').strip()  # Clean whitespace
                 
                 # Get publication date
                 pubdate = ''
