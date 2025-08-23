@@ -7,11 +7,63 @@ from datetime import datetime
 import time
 from dateutil import parser as date_parser
 import pytz
+import unicodedata
+import re
+
+def clean_text(text):
+    """Clean text to remove strange encoding characters and normalize Unicode"""
+    if not text:
+        return ''
+    
+    try:
+        # Convert to string if not already
+        text = str(text)
+        
+        # Normalize Unicode characters (NFKD = canonical decomposition, then canonical combining)
+        text = unicodedata.normalize('NFKD', text)
+        
+        # Remove common problematic characters that appear due to encoding issues
+        # These are common UTF-8 to Latin-1 encoding artifacts
+        replacements = {
+            'Â': '',  # Non-breaking space artifacts
+            'â€™': "'",  # Right single quotation mark
+            'â€œ': '"',  # Left double quotation mark
+            'â€': '"',   # Right double quotation mark
+            'â€"': '–',  # En dash
+            'â€"': '—',  # Em dash
+            'â€¢': '•',  # Bullet
+            'â€¦': '…',  # Horizontal ellipsis
+            'Ã©': 'é',   # e with acute
+            'Ã¡': 'á',   # a with acute
+            'Ã­': 'í',   # i with acute
+            'Ã³': 'ó',   # o with acute
+            'Ãº': 'ú',   # u with acute
+            'Ã±': 'ñ',   # n with tilde
+            'Ã§': 'ç',   # c with cedilla
+        }
+        
+        for bad_char, good_char in replacements.items():
+            text = text.replace(bad_char, good_char)
+        
+        # Remove any remaining non-printable characters except normal whitespace
+        text = ''.join(char for char in text if unicodedata.category(char)[0] != 'C' or char in '\t\n\r ')
+        
+        # Clean up excessive whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        return text
+        
+    except Exception as e:
+        print(f"Error cleaning text: {e}")
+        return str(text) if text else ''
 
 def standardize_date(date_string, source_name=""):
     """Convert various date formats to standardized Greece timezone format (DD/MM/YYYY HH:MM:SS)"""
     if not date_string or date_string.strip() == '':
         return ''
+    
+    # Clean the date string first
+    date_string = clean_text(date_string)
     
     # Target timezone - Greece (Europe/Athens)
     target_tz = pytz.timezone('Europe/Athens')
@@ -56,6 +108,7 @@ def scrape_splash247_rss():
     print("Scraping Splash247 RSS feed...")
     
     try:
+        # Parse feed with proper encoding handling
         feed = feedparser.parse(feed_url)
         print(f"Found {len(feed.entries)} entries from Splash247")
         
@@ -65,19 +118,20 @@ def scrape_splash247_rss():
             
             # Method 1: Try tags
             if hasattr(entry, 'tags'):
-                categories = [tag.term for tag in entry.tags]
+                categories = [clean_text(tag.term) for tag in entry.tags]
             # Method 2: Try categories
             elif hasattr(entry, 'categories'):
-                categories = entry.categories
+                categories = [clean_text(cat) for cat in entry.categories]
             
             # Debug: print categories to see what we're getting
             if categories:
-                print(f"Raw categories for '{entry.title[:50]}...': {categories}")
+                print(f"Raw categories for '{clean_text(entry.title)[:50]}...': {categories}")
                 print(f"Type: {type(categories)}, Length: {len(categories)}")
             
             # If we got a single string with pipes, split it
             if len(categories) == 1 and '|' in str(categories[0]):
                 categories = str(categories[0]).split('|')
+                categories = [clean_text(cat) for cat in categories]
                 print(f"Split pipe-separated categories: {categories}")
             
             # Clean up categories (remove empty strings, strip whitespace)
@@ -89,7 +143,7 @@ def scrape_splash247_rss():
             # Clean description (remove HTML tags if present)
             description = entry.get('description', '')
             if description:
-                import re
+                description = clean_text(description)
                 description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
                 description = description.replace('\n', ' ').strip()  # Clean whitespace
             
@@ -104,9 +158,9 @@ def scrape_splash247_rss():
             standardized_pubdate = standardize_date(pubdate, 'Splash247')
             
             article = {
-                'title': entry.title,
+                'title': clean_text(entry.title),
                 'link': entry.link,
-                'creator': entry.get('author', ''),
+                'creator': clean_text(entry.get('author', '')),
                 'pubdate': standardized_pubdate,
                 'category': final_category,
                 'description': description,
@@ -134,13 +188,14 @@ def scrape_maritime_executive_rss():
             # Extract categories
             categories = []
             if hasattr(entry, 'tags'):
-                categories = [tag.term for tag in entry.tags]
+                categories = [clean_text(tag.term) for tag in entry.tags]
             elif hasattr(entry, 'categories'):
-                categories = entry.categories
+                categories = [clean_text(cat) for cat in entry.categories]
             
             # If we got a single string with pipes, split it
             if len(categories) == 1 and '|' in str(categories[0]):
                 categories = str(categories[0]).split('|')
+                categories = [clean_text(cat) for cat in categories]
             
             # Clean up categories
             categories = [cat.strip() for cat in categories if cat.strip()]
@@ -157,7 +212,7 @@ def scrape_maritime_executive_rss():
                 article_paragraphs = []
                 
                 for p in paragraphs:
-                    p_text = p.get_text().strip()
+                    p_text = clean_text(p.get_text()).strip()
                     if p_text and len(p_text) > 10:  # Skip very short paragraphs
                         article_paragraphs.append(p_text)
                 
@@ -170,11 +225,11 @@ def scrape_maritime_executive_rss():
                     soup = BeautifulSoup(description, 'html.parser')
                     paragraphs = soup.find_all('p')
                     if paragraphs:
-                        full_article = ' '.join([p.get_text().strip() for p in paragraphs if p.get_text().strip()])
+                        full_article = ' '.join([clean_text(p.get_text()).strip() for p in paragraphs if clean_text(p.get_text()).strip()])
                     else:
                         # Remove HTML tags from description
-                        import re
                         full_article = re.sub('<[^<]+?>', '', description).strip()
+                        full_article = clean_text(full_article)
             
             # Get date from updated field (which contains the ISO format date)
             pubdate = ''
@@ -187,12 +242,12 @@ def scrape_maritime_executive_rss():
             standardized_pubdate = standardize_date(pubdate, 'Maritime Executive')
             
             # Get author (include even if empty)
-            author = entry.get('author', '')
+            author = clean_text(entry.get('author', ''))
             
-            print(f"Maritime Executive article: {entry.title[:50]}... | Date: {standardized_pubdate} | Author: '{author}' | Content length: {len(full_article)}")
+            print(f"Maritime Executive article: {clean_text(entry.title)[:50]}... | Date: {standardized_pubdate} | Author: '{author}' | Content length: {len(full_article)}")
             
             article = {
-                'title': entry.title,
+                'title': clean_text(entry.title),
                 'link': entry.link,
                 'creator': author,
                 'pubdate': standardized_pubdate,
@@ -222,6 +277,10 @@ def scrape_tradewinds_html():
         response = requests.get(url, headers=headers, timeout=30)
         response.raise_for_status()
         
+        # Explicitly handle encoding
+        if response.encoding:
+            response.encoding = 'utf-8'
+        
         soup = BeautifulSoup(response.content, 'html.parser')
         
         # Find all article cards based on the structure you provided
@@ -242,7 +301,7 @@ def scrape_tradewinds_html():
                 category_elem = card.find('a', class_=lambda x: x and 'main-category' in x)
                 category = ''
                 if category_elem:
-                    category = category_elem.get_text().strip()
+                    category = clean_text(category_elem.get_text()).strip()
                 
                 # Find article title link (should have href starting with specific path)
                 title_links = card.find_all('a', class_='card-link text-reset')
@@ -260,7 +319,7 @@ def scrape_tradewinds_html():
                     
                     # Skip category links, look for article links
                     if href.startswith('/') and len(href.split('/')) > 2:
-                        title = title_link.get_text().strip()
+                        title = clean_text(title_link.get_text()).strip()
                         
                         if not title or len(title) < 10:
                             continue
@@ -276,7 +335,7 @@ def scrape_tradewinds_html():
                         date_elem = card.find('span', class_='published-at')
                         if date_elem:
                             # Extract just the date part, skip the "Published" prefix
-                            pubdate_text = date_elem.get_text().strip()
+                            pubdate_text = clean_text(date_elem.get_text()).strip()
                             if 'Published' in pubdate_text:
                                 pubdate = pubdate_text.replace('Published', '').strip()
                             else:
@@ -290,7 +349,7 @@ def scrape_tradewinds_html():
                         # Look for any paragraph or div that might contain article summary
                         desc_candidates = card.find_all(['p', 'div'], class_=lambda x: x and ('summary' in x.lower() or 'excerpt' in x.lower() or 'description' in x.lower()))
                         if desc_candidates:
-                            description = desc_candidates[0].get_text().strip()
+                            description = clean_text(desc_candidates[0].get_text()).strip()
                         
                         article = {
                             'title': title,
@@ -338,13 +397,14 @@ def scrape_shipping_freight_resource_rss():
             # Extract categories
             categories = []
             if hasattr(entry, 'tags'):
-                categories = [tag.term for tag in entry.tags]
+                categories = [clean_text(tag.term) for tag in entry.tags]
             elif hasattr(entry, 'categories'):
-                categories = entry.categories
+                categories = [clean_text(cat) for cat in entry.categories]
             
             # If we got a single string with pipes, split it
             if len(categories) == 1 and '|' in str(categories[0]):
                 categories = str(categories[0]).split('|')
+                categories = [clean_text(cat) for cat in categories]
             
             # Clean up categories
             categories = [cat.strip() for cat in categories if cat.strip()]
@@ -353,7 +413,7 @@ def scrape_shipping_freight_resource_rss():
             # Clean description (remove HTML tags if present)
             description = entry.get('description', '')
             if description:
-                import re
+                description = clean_text(description)
                 description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
                 description = description.replace('\n', ' ').strip()  # Clean whitespace
             
@@ -368,9 +428,9 @@ def scrape_shipping_freight_resource_rss():
             standardized_pubdate = standardize_date(pubdate, 'Shipping and Freight Resource')
             
             article = {
-                'title': entry.title,
+                'title': clean_text(entry.title),
                 'link': entry.link,
-                'creator': entry.get('author', ''),
+                'creator': clean_text(entry.get('author', '')),
                 'pubdate': standardized_pubdate,
                 'category': final_category,
                 'description': description,
@@ -398,13 +458,14 @@ def scrape_marinelink_rss():
             # Extract categories
             categories = []
             if hasattr(entry, 'tags'):
-                categories = [tag.term for tag in entry.tags]
+                categories = [clean_text(tag.term) for tag in entry.tags]
             elif hasattr(entry, 'categories'):
-                categories = entry.categories
+                categories = [clean_text(cat) for cat in entry.categories]
             
             # If we got a single string with pipes, split it
             if len(categories) == 1 and '|' in str(categories[0]):
                 categories = str(categories[0]).split('|')
+                categories = [clean_text(cat) for cat in categories]
             
             # Clean up categories
             categories = [cat.strip() for cat in categories if cat.strip()]
@@ -413,7 +474,7 @@ def scrape_marinelink_rss():
             # Clean description (remove HTML tags if present)
             description = entry.get('description', '')
             if description:
-                import re
+                description = clean_text(description)
                 description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
                 description = description.replace('\n', ' ').strip()  # Clean whitespace
             
@@ -428,9 +489,9 @@ def scrape_marinelink_rss():
             standardized_pubdate = standardize_date(pubdate, 'MarineLink')
             
             article = {
-                'title': entry.title,
+                'title': clean_text(entry.title),
                 'link': entry.link,
-                'creator': entry.get('author', ''),
+                'creator': clean_text(entry.get('author', '')),
                 'pubdate': standardized_pubdate,
                 'category': final_category,
                 'description': description,
@@ -464,19 +525,20 @@ def scrape_hellenic_shipping_news_rss():
             for entry in feed.entries:
                 # Skip if we already processed this article from another feed
                 if entry.link in processed_links:
-                    print(f"Duplicate found, skipping: {entry.title[:50]}...")
+                    print(f"Duplicate found, skipping: {clean_text(entry.title)[:50]}...")
                     continue
                 
                 # Extract categories
                 categories = []
                 if hasattr(entry, 'tags'):
-                    categories = [tag.term for tag in entry.tags]
+                    categories = [clean_text(tag.term) for tag in entry.tags]
                 elif hasattr(entry, 'categories'):
-                    categories = entry.categories
+                    categories = [clean_text(cat) for cat in entry.categories]
                 
                 # If we got a single string with pipes, split it
                 if len(categories) == 1 and '|' in str(categories[0]):
                     categories = str(categories[0]).split('|')
+                    categories = [clean_text(cat) for cat in categories]
                 
                 # Clean up categories
                 categories = [cat.strip() for cat in categories if cat.strip()]
@@ -485,7 +547,7 @@ def scrape_hellenic_shipping_news_rss():
                 # Clean description (remove HTML tags if present)
                 description = entry.get('description', '')
                 if description:
-                    import re
+                    description = clean_text(description)
                     description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
                     description = description.replace('\n', ' ').strip()  # Clean whitespace
                 
@@ -500,9 +562,9 @@ def scrape_hellenic_shipping_news_rss():
                 standardized_pubdate = standardize_date(pubdate, source_name)
                 
                 article = {
-                    'title': entry.title,
+                    'title': clean_text(entry.title),
                     'link': entry.link,
-                    'creator': entry.get('author', ''),
+                    'creator': clean_text(entry.get('author', '')),
                     'pubdate': standardized_pubdate,
                     'category': final_category,
                     'description': description,
@@ -547,13 +609,14 @@ def migrate_existing_csv():
                 reader = csv.DictReader(lines)
                 for row in reader:
                     # Remove unwanted columns and add scrape_timestamp if missing
+                    # Also clean existing text data
                     new_row = {
-                        'title': row.get('title', ''),
+                        'title': clean_text(row.get('title', '')),
                         'link': row.get('link', ''),
-                        'creator': row.get('creator', ''),
+                        'creator': clean_text(row.get('creator', '')),
                         'pubdate': row.get('pubdate', ''),
-                        'category': row.get('category', ''),
-                        'description': row.get('description', ''),
+                        'category': clean_text(row.get('category', '')),
+                        'description': clean_text(row.get('description', '')),
                         'source': row.get('source', 'Unknown'),
                         'scrape_timestamp': row.get('scrape_timestamp', 'Unknown')  # Keep existing timestamp or mark as unknown
                     }
@@ -653,7 +716,7 @@ def scrape_all_sources():
             new_articles_count = 0
             for article in all_articles:
                 if article.get('link') and article['link'] not in existing_links:
-                    # Ensure all required fields are present
+                    # Ensure all required fields are present and cleaned
                     article_row = {
                         'title': article.get('title', ''),
                         'link': article.get('link', ''),
