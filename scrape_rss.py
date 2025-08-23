@@ -8,31 +8,7 @@ import time
 from dateutil import parser as date_parser
 import pytz
 
-def clean_text(text):
-    """Clean text of encoding issues and unwanted characters"""
-    if not text:
-        return ''
-    
-    # Fix common encoding issues
-    text = text.replace('Â', '')  # Remove stray Â characters
-    text = text.replace('\xa0', ' ')  # Replace non-breaking spaces
-    text = text.replace('\u00a0', ' ')  # Another non-breaking space
-    text = text.replace('\u2019', "'")  # Replace smart apostrophes
-    text = text.replace('\u2018', "'")  # Replace smart apostrophes
-    text = text.replace('\u201c', '"')  # Replace smart quotes
-    text = text.replace('\u201d', '"')  # Replace smart quotes
-    text = text.replace('\u2013', '-')  # Replace en dash
-    text = text.replace('\u2014', '-')  # Replace em dash
-    text = text.replace('\u2026', '...')  # Replace ellipsis
-    
-    # Remove any other non-printable characters except normal ones
-    import re
-    text = re.sub(r'[^\x20-\x7E\u00A0-\uFFFF]', '', text)
-    
-    # Clean up multiple spaces
-    text = ' '.join(text.split())
-    
-    return text.strip()
+def standardize_date(date_string, source_name=""):
     """Convert various date formats to standardized Greece timezone format (DD/MM/YYYY HH:MM:SS)"""
     if not date_string or date_string.strip() == '':
         return ''
@@ -81,15 +57,7 @@ def scrape_splash247_rss():
     
     try:
         feed = feedparser.parse(feed_url)
-        print(f"   RSS Status: {feed.get('status', 'unknown')}")
-        print(f"   Feed Title: {feed.feed.get('title', 'unknown') if hasattr(feed, 'feed') else 'no feed object'}")
-        print(f"   Found {len(feed.entries)} entries from Splash247")
-        
-        if len(feed.entries) == 0:
-            print(f"   🚨 No entries found. Feed object keys: {list(feed.keys())}")
-            if hasattr(feed, 'bozo') and feed.bozo:
-                print(f"   🚨 Feed parsing error: {feed.bozo_exception}")
-            return articles
+        print(f"Found {len(feed.entries)} entries from Splash247")
         
         for entry in feed.entries:
             # Extract categories with multiple approaches
@@ -113,7 +81,7 @@ def scrape_splash247_rss():
                 print(f"Split pipe-separated categories: {categories}")
             
             # Clean up categories (remove empty strings, strip whitespace)
-            categories = [clean_text(cat.strip()) for cat in categories if cat.strip()]
+            categories = [cat.strip() for cat in categories if cat.strip()]
             
             final_category = ', '.join(categories) if categories else ''
             print(f"Final category string: '{final_category}'")
@@ -124,7 +92,6 @@ def scrape_splash247_rss():
                 import re
                 description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
                 description = description.replace('\n', ' ').strip()  # Clean whitespace
-                description = clean_text(description)  # Clean encoding issues
             
             # Get publication date
             pubdate = ''
@@ -137,9 +104,9 @@ def scrape_splash247_rss():
             standardized_pubdate = standardize_date(pubdate, 'Splash247')
             
             article = {
-                'title': clean_text(entry.title),
+                'title': entry.title,
                 'link': entry.link,
-                'creator': clean_text(entry.get('author', '')),
+                'creator': entry.get('author', ''),
                 'pubdate': standardized_pubdate,
                 'category': final_category,
                 'description': description,
@@ -161,15 +128,7 @@ def scrape_maritime_executive_rss():
     
     try:
         feed = feedparser.parse(feed_url)
-        print(f"   RSS Status: {feed.get('status', 'unknown')}")
-        print(f"   Feed Title: {feed.feed.get('title', 'unknown') if hasattr(feed, 'feed') else 'no feed object'}")
-        print(f"   Found {len(feed.entries)} entries from Maritime Executive")
-        
-        if len(feed.entries) == 0:
-            print(f"   🚨 No entries found. Feed object keys: {list(feed.keys())}")
-            if hasattr(feed, 'bozo') and feed.bozo:
-                print(f"   🚨 Feed parsing error: {feed.bozo_exception}")
-            return articles
+        print(f"Found {len(feed.entries)} entries from Maritime Executive")
         
         for entry in feed.entries:
             # Extract categories
@@ -184,7 +143,7 @@ def scrape_maritime_executive_rss():
                 categories = str(categories[0]).split('|')
             
             # Clean up categories
-            categories = [clean_text(cat.strip()) for cat in categories if cat.strip()]
+            categories = [cat.strip() for cat in categories if cat.strip()]
             final_category = ', '.join(categories) if categories else ''
             
             # Get the full article content from RSS
@@ -216,7 +175,6 @@ def scrape_maritime_executive_rss():
                         # Remove HTML tags from description
                         import re
                         full_article = re.sub('<[^<]+?>', '', description).strip()
-                        full_article = clean_text(full_article)  # Clean encoding issues
             
             # Get date from updated field (which contains the ISO format date)
             pubdate = ''
@@ -234,12 +192,12 @@ def scrape_maritime_executive_rss():
             print(f"Maritime Executive article: {entry.title[:50]}... | Date: {standardized_pubdate} | Author: '{author}' | Content length: {len(full_article)}")
             
             article = {
-                'title': clean_text(entry.title),
+                'title': entry.title,
                 'link': entry.link,
-                'creator': clean_text(author),
+                'creator': author,
                 'pubdate': standardized_pubdate,
                 'category': final_category,
-                'description': clean_text(full_article),  # Full article content
+                'description': full_article,  # Full article content
                 'source': 'Maritime Executive'
             }
             articles.append(article)
@@ -335,12 +293,12 @@ def scrape_tradewinds_html():
                             description = desc_candidates[0].get_text().strip()
                         
                         article = {
-                            'title': clean_text(title),
+                            'title': title,
                             'link': link,
                             'creator': '',  # TradeWinds doesn't show author on listing page
                             'pubdate': standardized_pubdate,
-                            'category': clean_text(category),
-                            'description': clean_text(description),
+                            'category': category,
+                            'description': description,
                             'source': 'TradeWinds'
                         }
                         articles.append(article)
@@ -389,7 +347,7 @@ def scrape_shipping_freight_resource_rss():
                 categories = str(categories[0]).split('|')
             
             # Clean up categories
-            categories = [clean_text(cat.strip()) for cat in categories if cat.strip()]
+            categories = [cat.strip() for cat in categories if cat.strip()]
             final_category = ', '.join(categories) if categories else ''
             
             # Clean description (remove HTML tags if present)
@@ -398,7 +356,6 @@ def scrape_shipping_freight_resource_rss():
                 import re
                 description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
                 description = description.replace('\n', ' ').strip()  # Clean whitespace
-                description = clean_text(description)  # Clean encoding issues
             
             # Get publication date
             pubdate = ''
@@ -411,9 +368,9 @@ def scrape_shipping_freight_resource_rss():
             standardized_pubdate = standardize_date(pubdate, 'Shipping and Freight Resource')
             
             article = {
-                'title': clean_text(entry.title),
+                'title': entry.title,
                 'link': entry.link,
-                'creator': clean_text(entry.get('author', '')),
+                'creator': entry.get('author', ''),
                 'pubdate': standardized_pubdate,
                 'category': final_category,
                 'description': description,
@@ -450,7 +407,7 @@ def scrape_marinelink_rss():
                 categories = str(categories[0]).split('|')
             
             # Clean up categories
-            categories = [clean_text(cat.strip()) for cat in categories if cat.strip()]
+            categories = [cat.strip() for cat in categories if cat.strip()]
             final_category = ', '.join(categories) if categories else ''
             
             # Clean description (remove HTML tags if present)
@@ -459,7 +416,6 @@ def scrape_marinelink_rss():
                 import re
                 description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
                 description = description.replace('\n', ' ').strip()  # Clean whitespace
-                description = clean_text(description)  # Clean encoding issues
             
             # Get publication date
             pubdate = ''
@@ -472,9 +428,9 @@ def scrape_marinelink_rss():
             standardized_pubdate = standardize_date(pubdate, 'MarineLink')
             
             article = {
-                'title': clean_text(entry.title),
+                'title': entry.title,
                 'link': entry.link,
-                'creator': clean_text(entry.get('author', '')),
+                'creator': entry.get('author', ''),
                 'pubdate': standardized_pubdate,
                 'category': final_category,
                 'description': description,
@@ -505,11 +461,11 @@ def scrape_hellenic_shipping_news_rss():
             feed = feedparser.parse(feed_url)
             print(f"Found {len(feed.entries)} entries from {source_name}")
             
-                for entry in feed.entries:
-                    # Skip if we already processed this article from another feed
-                    if entry.link in processed_links:
-                        print(f"   Duplicate found, skipping: {entry.title[:50]}...")
-                        continue
+            for entry in feed.entries:
+                # Skip if we already processed this article from another feed
+                if entry.link in processed_links:
+                    print(f"Duplicate found, skipping: {entry.title[:50]}...")
+                    continue
                 
                 # Extract categories
                 categories = []
@@ -523,7 +479,7 @@ def scrape_hellenic_shipping_news_rss():
                     categories = str(categories[0]).split('|')
                 
                 # Clean up categories
-                categories = [clean_text(cat.strip()) for cat in categories if cat.strip()]
+                categories = [cat.strip() for cat in categories if cat.strip()]
                 final_category = ', '.join(categories) if categories else ''
                 
                 # Clean description (remove HTML tags if present)
@@ -532,7 +488,6 @@ def scrape_hellenic_shipping_news_rss():
                     import re
                     description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
                     description = description.replace('\n', ' ').strip()  # Clean whitespace
-                    description = clean_text(description)  # Clean encoding issues
                 
                 # Get publication date
                 pubdate = ''
@@ -545,9 +500,9 @@ def scrape_hellenic_shipping_news_rss():
                 standardized_pubdate = standardize_date(pubdate, source_name)
                 
                 article = {
-                    'title': clean_text(entry.title),
+                    'title': entry.title,
                     'link': entry.link,
-                    'creator': clean_text(entry.get('author', '')),
+                    'creator': entry.get('author', ''),
                     'pubdate': standardized_pubdate,
                     'category': final_category,
                     'description': description,
@@ -633,78 +588,36 @@ def scrape_all_sources():
     # Get articles from all sources
     all_articles = []
     
-    print("\n=== STARTING SCRAPING PROCESS ===")
-    
     # Scrape Splash247 RSS
-    try:
-        print("1. Attempting Splash247...")
-        splash_articles = scrape_splash247_rss()
-        print(f"   → Splash247 returned {len(splash_articles)} articles")
-        all_articles.extend(splash_articles)
-        time.sleep(2)  # Be respectful between requests
-    except Exception as e:
-        print(f"   → ERROR in Splash247: {e}")
+    splash_articles = scrape_splash247_rss()
+    all_articles.extend(splash_articles)
+    time.sleep(2)  # Be respectful between requests
     
     # Scrape Maritime Executive RSS
-    try:
-        print("2. Attempting Maritime Executive...")
-        maritime_exec_articles = scrape_maritime_executive_rss()
-        print(f"   → Maritime Executive returned {len(maritime_exec_articles)} articles")
-        all_articles.extend(maritime_exec_articles)
-        time.sleep(2)
-    except Exception as e:
-        print(f"   → ERROR in Maritime Executive: {e}")
+    maritime_exec_articles = scrape_maritime_executive_rss()
+    all_articles.extend(maritime_exec_articles)
+    time.sleep(2)
     
     # Scrape TradeWinds HTML
-    try:
-        print("3. Attempting TradeWinds...")
-        tradewinds_articles = scrape_tradewinds_html()
-        print(f"   → TradeWinds returned {len(tradewinds_articles)} articles")
-        all_articles.extend(tradewinds_articles)
-        time.sleep(2)
-    except Exception as e:
-        print(f"   → ERROR in TradeWinds: {e}")
+    tradewinds_articles = scrape_tradewinds_html()
+    all_articles.extend(tradewinds_articles)
+    time.sleep(2)
     
     # Scrape Shipping and Freight Resource RSS
-    try:
-        print("4. Attempting Shipping and Freight Resource...")
-        shipping_freight_articles = scrape_shipping_freight_resource_rss()
-        print(f"   → Shipping and Freight Resource returned {len(shipping_freight_articles)} articles")
-        all_articles.extend(shipping_freight_articles)
-        time.sleep(2)
-    except Exception as e:
-        print(f"   → ERROR in Shipping and Freight Resource: {e}")
+    shipping_freight_articles = scrape_shipping_freight_resource_rss()
+    all_articles.extend(shipping_freight_articles)
+    time.sleep(2)
     
     # Scrape MarineLink RSS
-    try:
-        print("5. Attempting MarineLink...")
-        marinelink_articles = scrape_marinelink_rss()
-        print(f"   → MarineLink returned {len(marinelink_articles)} articles")
-        all_articles.extend(marinelink_articles)
-        time.sleep(2)
-    except Exception as e:
-        print(f"   → ERROR in MarineLink: {e}")
+    marinelink_articles = scrape_marinelink_rss()
+    all_articles.extend(marinelink_articles)
+    time.sleep(2)
     
     # Scrape Hellenic Shipping News RSS feeds (with duplicate removal)
-    try:
-        print("6. Attempting Hellenic Shipping News...")
-        hellenic_articles = scrape_hellenic_shipping_news_rss()
-        print(f"   → Hellenic Shipping News returned {len(hellenic_articles)} articles")
-        all_articles.extend(hellenic_articles)
-    except Exception as e:
-        print(f"   → ERROR in Hellenic Shipping News: {e}")
+    hellenic_articles = scrape_hellenic_shipping_news_rss()
+    all_articles.extend(hellenic_articles)
     
-    print(f"\n=== SCRAPING SUMMARY ===")
-    print(f"Total articles found across all sources: {len(all_articles)}")
-    
-    if len(all_articles) == 0:
-        print("🚨 WARNING: No articles found from any source!")
-        print("This could indicate:")
-        print("  - Network connectivity issues")
-        print("  - Website structure changes")
-        print("  - RSS feed URL changes")
-        print("  - Rate limiting or blocking")
-        return
+    print(f"Total articles found: {len(all_articles)}")
     
     # Add scrape timestamp to all articles
     for article in all_articles:
@@ -721,7 +634,7 @@ def scrape_all_sources():
                 reader = csv.DictReader(f)
                 for row in reader:
                     existing_links.add(row.get('link', ''))
-            print(f"Found {len(existing_links)} existing articles in CSV")
+            print(f"Found {len(existing_links)} existing articles")
         except Exception as e:
             print(f"Error reading existing CSV: {e}")
     
@@ -738,8 +651,6 @@ def scrape_all_sources():
             
             # Process new entries
             new_articles_count = 0
-            duplicate_count = 0
-            
             for article in all_articles:
                 if article.get('link') and article['link'] not in existing_links:
                     # Ensure all required fields are present
@@ -755,19 +666,12 @@ def scrape_all_sources():
                     }
                     writer.writerow(article_row)
                     new_articles_count += 1
-                    print(f"✓ New article: {article['title'][:60]}... (Source: {article['source']})")
-                elif article.get('link'):
-                    duplicate_count += 1
+                    print(f"New article added: {article['title']} (Source: {article['source']})")
             
-            print(f"\n=== FINAL RESULTS ===")
-            print(f"✓ Added {new_articles_count} new articles to {csv_file}")
-            print(f"↺ Skipped {duplicate_count} duplicate articles")
-            print(f"📄 Total articles processed: {len(all_articles)}")
+            print(f"Added {new_articles_count} new articles to {csv_file}")
             
     except Exception as e:
-        print(f"❌ Error writing to CSV: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"Error writing to CSV: {e}")
 
 if __name__ == "__main__":
     scrape_all_sources()
