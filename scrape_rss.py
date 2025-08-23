@@ -8,7 +8,31 @@ import time
 from dateutil import parser as date_parser
 import pytz
 
-def standardize_date(date_string, source_name=""):
+def clean_text(text):
+    """Clean text of encoding issues and unwanted characters"""
+    if not text:
+        return ''
+    
+    # Fix common encoding issues
+    text = text.replace('Â', '')  # Remove stray Â characters
+    text = text.replace('\xa0', ' ')  # Replace non-breaking spaces
+    text = text.replace('\u00a0', ' ')  # Another non-breaking space
+    text = text.replace('\u2019', "'")  # Replace smart apostrophes
+    text = text.replace('\u2018', "'")  # Replace smart apostrophes
+    text = text.replace('\u201c', '"')  # Replace smart quotes
+    text = text.replace('\u201d', '"')  # Replace smart quotes
+    text = text.replace('\u2013', '-')  # Replace en dash
+    text = text.replace('\u2014', '-')  # Replace em dash
+    text = text.replace('\u2026', '...')  # Replace ellipsis
+    
+    # Remove any other non-printable characters except normal ones
+    import re
+    text = re.sub(r'[^\x20-\x7E\u00A0-\uFFFF]', '', text)
+    
+    # Clean up multiple spaces
+    text = ' '.join(text.split())
+    
+    return text.strip()
     """Convert various date formats to standardized Greece timezone format (DD/MM/YYYY HH:MM:SS)"""
     if not date_string or date_string.strip() == '':
         return ''
@@ -81,7 +105,7 @@ def scrape_splash247_rss():
                 print(f"Split pipe-separated categories: {categories}")
             
             # Clean up categories (remove empty strings, strip whitespace)
-            categories = [cat.strip() for cat in categories if cat.strip()]
+            categories = [clean_text(cat.strip()) for cat in categories if cat.strip()]
             
             final_category = ', '.join(categories) if categories else ''
             print(f"Final category string: '{final_category}'")
@@ -92,6 +116,7 @@ def scrape_splash247_rss():
                 import re
                 description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
                 description = description.replace('\n', ' ').strip()  # Clean whitespace
+                description = clean_text(description)  # Clean encoding issues
             
             # Get publication date
             pubdate = ''
@@ -104,9 +129,9 @@ def scrape_splash247_rss():
             standardized_pubdate = standardize_date(pubdate, 'Splash247')
             
             article = {
-                'title': entry.title,
+                'title': clean_text(entry.title),
                 'link': entry.link,
-                'creator': entry.get('author', ''),
+                'creator': clean_text(entry.get('author', '')),
                 'pubdate': standardized_pubdate,
                 'category': final_category,
                 'description': description,
@@ -143,7 +168,7 @@ def scrape_maritime_executive_rss():
                 categories = str(categories[0]).split('|')
             
             # Clean up categories
-            categories = [cat.strip() for cat in categories if cat.strip()]
+            categories = [clean_text(cat.strip()) for cat in categories if cat.strip()]
             final_category = ', '.join(categories) if categories else ''
             
             # Get the full article content from RSS
@@ -175,6 +200,7 @@ def scrape_maritime_executive_rss():
                         # Remove HTML tags from description
                         import re
                         full_article = re.sub('<[^<]+?>', '', description).strip()
+                        full_article = clean_text(full_article)  # Clean encoding issues
             
             # Get date from updated field (which contains the ISO format date)
             pubdate = ''
@@ -192,12 +218,12 @@ def scrape_maritime_executive_rss():
             print(f"Maritime Executive article: {entry.title[:50]}... | Date: {standardized_pubdate} | Author: '{author}' | Content length: {len(full_article)}")
             
             article = {
-                'title': entry.title,
+                'title': clean_text(entry.title),
                 'link': entry.link,
-                'creator': author,
+                'creator': clean_text(author),
                 'pubdate': standardized_pubdate,
                 'category': final_category,
-                'description': full_article,  # Full article content
+                'description': clean_text(full_article),  # Full article content
                 'source': 'Maritime Executive'
             }
             articles.append(article)
@@ -293,12 +319,12 @@ def scrape_tradewinds_html():
                             description = desc_candidates[0].get_text().strip()
                         
                         article = {
-                            'title': title,
+                            'title': clean_text(title),
                             'link': link,
                             'creator': '',  # TradeWinds doesn't show author on listing page
                             'pubdate': standardized_pubdate,
-                            'category': category,
-                            'description': description,
+                            'category': clean_text(category),
+                            'description': clean_text(description),
                             'source': 'TradeWinds'
                         }
                         articles.append(article)
@@ -347,7 +373,7 @@ def scrape_shipping_freight_resource_rss():
                 categories = str(categories[0]).split('|')
             
             # Clean up categories
-            categories = [cat.strip() for cat in categories if cat.strip()]
+            categories = [clean_text(cat.strip()) for cat in categories if cat.strip()]
             final_category = ', '.join(categories) if categories else ''
             
             # Clean description (remove HTML tags if present)
@@ -356,6 +382,7 @@ def scrape_shipping_freight_resource_rss():
                 import re
                 description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
                 description = description.replace('\n', ' ').strip()  # Clean whitespace
+                description = clean_text(description)  # Clean encoding issues
             
             # Get publication date
             pubdate = ''
@@ -368,9 +395,9 @@ def scrape_shipping_freight_resource_rss():
             standardized_pubdate = standardize_date(pubdate, 'Shipping and Freight Resource')
             
             article = {
-                'title': entry.title,
+                'title': clean_text(entry.title),
                 'link': entry.link,
-                'creator': entry.get('author', ''),
+                'creator': clean_text(entry.get('author', '')),
                 'pubdate': standardized_pubdate,
                 'category': final_category,
                 'description': description,
@@ -407,7 +434,7 @@ def scrape_marinelink_rss():
                 categories = str(categories[0]).split('|')
             
             # Clean up categories
-            categories = [cat.strip() for cat in categories if cat.strip()]
+            categories = [clean_text(cat.strip()) for cat in categories if cat.strip()]
             final_category = ', '.join(categories) if categories else ''
             
             # Clean description (remove HTML tags if present)
@@ -416,6 +443,7 @@ def scrape_marinelink_rss():
                 import re
                 description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
                 description = description.replace('\n', ' ').strip()  # Clean whitespace
+                description = clean_text(description)  # Clean encoding issues
             
             # Get publication date
             pubdate = ''
@@ -428,9 +456,9 @@ def scrape_marinelink_rss():
             standardized_pubdate = standardize_date(pubdate, 'MarineLink')
             
             article = {
-                'title': entry.title,
+                'title': clean_text(entry.title),
                 'link': entry.link,
-                'creator': entry.get('author', ''),
+                'creator': clean_text(entry.get('author', '')),
                 'pubdate': standardized_pubdate,
                 'category': final_category,
                 'description': description,
@@ -479,7 +507,7 @@ def scrape_hellenic_shipping_news_rss():
                     categories = str(categories[0]).split('|')
                 
                 # Clean up categories
-                categories = [cat.strip() for cat in categories if cat.strip()]
+                categories = [clean_text(cat.strip()) for cat in categories if cat.strip()]
                 final_category = ', '.join(categories) if categories else ''
                 
                 # Clean description (remove HTML tags if present)
@@ -488,6 +516,7 @@ def scrape_hellenic_shipping_news_rss():
                     import re
                     description = re.sub('<[^<]+?>', '', description)  # Remove HTML tags
                     description = description.replace('\n', ' ').strip()  # Clean whitespace
+                    description = clean_text(description)  # Clean encoding issues
                 
                 # Get publication date
                 pubdate = ''
@@ -500,9 +529,9 @@ def scrape_hellenic_shipping_news_rss():
                 standardized_pubdate = standardize_date(pubdate, source_name)
                 
                 article = {
-                    'title': entry.title,
+                    'title': clean_text(entry.title),
                     'link': entry.link,
-                    'creator': entry.get('author', ''),
+                    'creator': clean_text(entry.get('author', '')),
                     'pubdate': standardized_pubdate,
                     'category': final_category,
                     'description': description,
