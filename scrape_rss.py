@@ -161,6 +161,68 @@ def standardize_date(date_string, source_name=""):
         print(f"Error parsing date '{date_string}' from {source_name}: {e}")
         return date_string  # Return original if parsing fails
 
+def scrape_riviera_maritime_media_rss():
+    """Scrape Riviera Maritime Media RSS feed"""
+    feed_url = 'https://www.rivieramm.com/Syndication/DF.cfm?f=8&ft=10&preview=1'
+    articles = []
+    
+    print("Scraping Riviera Maritime Media RSS feed...")
+    
+    try:
+        feed = feedparser.parse(feed_url)
+        print(f"Found {len(feed.entries)} entries from Riviera Maritime Media")
+        
+        for entry in feed.entries:
+            # Extract categories
+            categories = []
+            if hasattr(entry, 'tags'):
+                categories = [clean_text(tag.term) for tag in entry.tags]
+            elif hasattr(entry, 'categories'):
+                categories = [clean_text(cat) for cat in entry.categories]
+            
+            # If we got a single string with pipes, split it
+            if len(categories) == 1 and '|' in str(categories[0]):
+                categories = str(categories[0]).split('|')
+                categories = [clean_text(cat) for cat in categories]
+            
+            # Clean up categories
+            categories = [cat.strip() for cat in categories if cat.strip()]
+            final_category = ', '.join(categories) if categories else ''
+            
+            # Clean description (remove HTML tags if present)
+            description = entry.get('description', '')
+            if description:
+                # Use BeautifulSoup to properly handle HTML entities and tags
+                soup = BeautifulSoup(description, 'html.parser')
+                description = soup.get_text(separator=' ', strip=True)
+                description = clean_text(description)
+            
+            # Get publication date
+            pubdate = ''
+            if hasattr(entry, 'published'):
+                pubdate = entry.published
+            elif hasattr(entry, 'updated'):
+                pubdate = entry.updated
+            
+            # Standardize the date format
+            standardized_pubdate = standardize_date(pubdate, 'Riviera Maritime Media')
+            
+            article = {
+                'title': clean_text(entry.title),
+                'link': entry.link,
+                'creator': clean_text(entry.get('author', '')),
+                'pubdate': standardized_pubdate,
+                'category': final_category,
+                'description': description,
+                'source': 'Riviera Maritime Media'
+            }
+            articles.append(article)
+            
+    except Exception as e:
+        print(f"Error scraping Riviera Maritime Media: {e}")
+    
+    return articles
+
 def scrape_gcaptain_rss():
     """Scrape gCaptain RSS feed"""
     feed_url = 'https://gcaptain.com/feed/'
@@ -878,6 +940,11 @@ def scrape_all_sources():
     # Scrape gCaptain RSS
     gcaptain_articles = scrape_gcaptain_rss()
     all_articles.extend(gcaptain_articles)
+    time.sleep(2)
+    
+    # Scrape Riviera Maritime Media RSS
+    riviera_articles = scrape_riviera_maritime_media_rss()
+    all_articles.extend(riviera_articles)
     
     print(f"Total articles found: {len(all_articles)}")
     
