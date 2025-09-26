@@ -817,10 +817,22 @@ def scrape_marinelink_rss():
     return articles
 
 def scrape_hellenic_shipping_news_rss():
-    """Scrape both Hellenic Shipping News RSS feeds and remove duplicates"""
+    """Scrape all Hellenic Shipping News RSS feeds and remove duplicates"""
     feeds = [
         ('https://www.hellenicshippingnews.com/tag/top-stories/feed/', 'Hellenic Shipping News - Top Stories'),
-        ('https://www.hellenicshippingnews.com/category/shipping-news/dry-bulk-market/feed/', 'Hellenic Shipping News - Dry Bulk')
+        ('https://www.hellenicshippingnews.com/category/shipping-news/dry-bulk-market/feed/', 'Hellenic Shipping News - Dry Bulk'),
+        ('https://www.hellenicshippingnews.com/category/commodities/commodity-news/feed/', 'Hellenic Shipping News - Commodity News'),
+        ('https://www.hellenicshippingnews.com/category/commodities/freight-news/feed/', 'Hellenic Shipping News - Freight News'),
+        ('https://www.hellenicshippingnews.com/category/report-analysis/weekly-dry-time-charter-estimates/feed/', 'Hellenic Shipping News - Weekly Dry Time Charter'),
+        ('https://www.hellenicshippingnews.com/category/report-analysis/weekly-tanker-time-charter-estimates/feed/', 'Hellenic Shipping News - Weekly Tanker Time Charter'),
+        ('https://www.hellenicshippingnews.com/category/report-analysis/weekly-vessel-valuations-report/feed/', 'Hellenic Shipping News - Weekly Vessel Valuations'),
+        ('https://www.hellenicshippingnews.com/category/report-analysis/weekly-shipbrokers-reports/feed/', 'Hellenic Shipping News - Weekly Shipbrokers Reports'),
+        ('https://www.hellenicshippingnews.com/category/report-analysis/weekly-ship-sales/feed/', 'Hellenic Shipping News - Weekly Ship Sales'),
+        ('https://www.hellenicshippingnews.com/category/report-analysis/weekly-demolition-reports/feed/', 'Hellenic Shipping News - Weekly Demolition Reports'),
+        ('https://www.hellenicshippingnews.com/category/report-analysis/weekly-shipbuilding-reports/feed/', 'Hellenic Shipping News - Weekly Shipbuilding Reports'),
+        ('https://www.hellenicshippingnews.com/category/report-analysis/monthly-shipbrokers-reports/feed/', 'Hellenic Shipping News - Monthly Shipbrokers Reports'),
+        ('https://www.hellenicshippingnews.com/category/oil-energy/oil-companies-news/feed/', 'Hellenic Shipping News - Oil Companies'),
+        ('https://www.hellenicshippingnews.com/category/oil-energy/general-energy-news/feed/', 'Hellenic Shipping News - General Energy')
     ]
     
     all_articles = []
@@ -888,8 +900,10 @@ def scrape_hellenic_shipping_news_rss():
                 
         except Exception as e:
             print(f"Error scraping {source_name}: {e}")
+            continue  # Continue with next feed even if one fails
         
         all_articles.extend(articles)
+        time.sleep(1)  # Brief pause between feeds to be respectful
     
     print(f"Total unique articles from Hellenic Shipping News: {len(all_articles)}")
     return all_articles
